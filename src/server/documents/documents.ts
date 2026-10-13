@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { contacts, documents, recipients, user } from "@/db/schema";
 import type { Db } from "@/db/types";
@@ -14,8 +14,8 @@ import { variableValues } from "@/lib/editor/variables";
 import { emptyQuote, type Quote } from "@/lib/quote/schema";
 import { computeQuote } from "@/lib/quote/totals";
 import { getContact } from "@/server/contacts/contacts";
-import { checkContent, checkPayment, checkQuote, RolesSchema } from "@/server/content-rules";
-import { NotFoundError, ValidationError } from "@/server/errors";
+import { checkContent, checkPayment, checkQuote, RolesSchema, VersionSchema } from "@/server/content-rules";
+import { ConflictError, NotFoundError, ValidationError } from "@/server/errors";
 import { getOrganizationSettings } from "@/server/org/settings";
 import { getTemplate } from "@/server/templates/templates";
 import type { OrgContext } from "@/server/tenancy";
@@ -66,7 +66,9 @@ const UpdateInput = z
     paymentMode: z.enum(PAYMENT_MODES),
     paymentPercent: z.number().nullable(),
   })
-  .partial();
+  .partial()
+  // The version of the document the caller loaded; required, so a save never overwrites a newer one blindly.
+  .extend({ version: VersionSchema });
 
 function scoped(ctx: OrgContext, id: string) {
   return and(eq(documents.id, id), eq(documents.organizationId, ctx.organizationId));
@@ -165,53 +167,77 @@ export async function getDraftDocument(db: Db, ctx: OrgContext, id: string): Pro
   return document;
 }
 
+/**
+ * Locks a draft document's row until the transaction ends, then loads its recipients.
+ * Recipient edits and role changes take this lock first, so they cannot interleave.
+ */
+export async function lockDraftDocument(tx: Db, ctx: OrgContext, id: string): Promise<DocumentDetail> {
+  const [document] = await tx.select().from(documents).where(scoped(ctx, id)).for("update").limit(1);
+  if (!document) throw new NotFoundError("Document not found.");
+  if (document.status !== "draft") throw new ValidationError("Only draft documents can be edited.");
+  const rows = await tx
+    .select()
+    .from(recipients)
+    .where(and(eq(recipients.documentId, id), eq(recipients.organizationId, ctx.organizationId)))
+    .orderBy(asc(recipients.ordering), asc(recipients.createdAt));
+  return { ...document, recipients: rows };
+}
+
 export async function updateDocument(db: Db, ctx: OrgContext, id: string, input: unknown): Promise<DocumentRow> {
   const data = parseInput(UpdateInput, input);
-  const existing = await getDraftDocument(db, ctx, id);
+  return db.transaction(async (tx) => {
+    const existing = await lockDraftDocument(tx, ctx, id);
 
-  const roles = data.roles ?? existing.roles;
-  const orphan = existing.recipients.find((recipient) => recipient.role !== null && !roles.includes(recipient.role));
-  if (orphan) {
-    throw new ValidationError(
-      `Remove the recipient ${orphan.name} or give them another role before removing the role "${orphan.role}".`,
+    const roles = data.roles ?? existing.roles;
+    const orphan = existing.recipients.find((recipient) => recipient.role !== null && !roles.includes(recipient.role));
+    if (orphan) {
+      throw new ValidationError(
+        `Remove the recipient ${orphan.name} or give them another role before removing the role "${orphan.role}".`,
+      );
+    }
+    const content = checkContent(data.content !== undefined ? data.content : existing.content, roles);
+    const quote = data.quote !== undefined ? checkQuote(data.quote) : existing.quote;
+    const payment = checkPayment(
+      data.paymentMode ?? existing.paymentMode,
+      data.paymentPercent !== undefined ? data.paymentPercent : existing.paymentPercent,
     );
-  }
-  const content = checkContent(data.content !== undefined ? data.content : existing.content, roles);
-  const quote = data.quote !== undefined ? checkQuote(data.quote) : existing.quote;
-  const payment = checkPayment(
-    data.paymentMode ?? existing.paymentMode,
-    data.paymentPercent !== undefined ? data.paymentPercent : existing.paymentPercent,
-  );
-  let contactId = existing.contactId;
-  if (data.contactId !== undefined) {
-    contactId = data.contactId === null ? null : (await getContact(db, ctx, data.contactId)).id;
-  }
-  const variables = data.variables
-    ? Object.fromEntries(
-        Object.entries(data.variables)
-          .map(([name, value]) => [name, value.trim()] as const)
-          .filter(([, value]) => value !== ""),
-      )
-    : existing.variables;
+    let contactId = existing.contactId;
+    if (data.contactId !== undefined) {
+      contactId = data.contactId === null ? null : (await getContact(tx, ctx, data.contactId)).id;
+    }
+    const variables = data.variables
+      ? Object.fromEntries(
+          Object.entries(data.variables)
+            .map(([name, value]) => [name, value.trim()] as const)
+            .filter(([, value]) => value !== ""),
+        )
+      : existing.variables;
 
-  const [document] = await db
-    .update(documents)
-    .set({
-      name: data.name ?? existing.name,
-      contactId,
-      roles,
-      content,
-      quote,
-      variables,
-      ...payment,
-      // Always derived from the stored pricing table, never from input.
-      currency: quote?.currency ?? existing.currency,
-      total: quote ? computeQuote(quote).total : 0,
-    })
-    .where(and(scoped(ctx, id), eq(documents.status, "draft")))
-    .returning();
-  if (!document) throw new ValidationError("Only draft documents can be edited.");
-  return document;
+    const [document] = await tx
+      .update(documents)
+      .set({
+        name: data.name ?? existing.name,
+        contactId,
+        roles,
+        content,
+        quote,
+        variables,
+        ...payment,
+        // Always derived from the stored pricing table, never from input.
+        currency: quote?.currency ?? existing.currency,
+        total: quote ? computeQuote(quote).total : 0,
+        version: sql`${documents.version} + 1`,
+      })
+      .where(and(scoped(ctx, id), eq(documents.status, "draft"), eq(documents.version, data.version)))
+      .returning();
+    // The row is locked and was a draft above, so only a different version can leave nothing to update.
+    if (!document) {
+      throw new ConflictError(
+        "Someone else saved this document since you opened it. Reload the page to see their changes, then make your edits again.",
+      );
+    }
+    return document;
+  });
 }
 
 export async function deleteDocument(db: Db, ctx: OrgContext, id: string): Promise<void> {

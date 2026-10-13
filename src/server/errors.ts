@@ -18,3 +18,11 @@ export class NotFoundError extends Error {
     this.name = "NotFoundError";
   }
 }
+
+/** The record changed since the caller loaded it. */
+export class ConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ConflictError";
+  }
+}

@@ -15,6 +15,7 @@ import { saveTemplateAction } from "../actions";
 
 export type TemplateData = {
   id: string;
+  version: number;
   name: string;
   documentType: DocumentType;
   roles: string[];
@@ -42,23 +43,26 @@ export function TemplateWorkspace({
   const [quote, setQuote] = useState<Quote | null>(template.quote);
   const [paymentMode, setPaymentMode] = useState<PaymentMode>(template.paymentMode);
   const [paymentPercent, setPaymentPercent] = useState(template.paymentPercent?.toString() ?? "");
+  // The saved version this page is based on; sent with each save and replaced by the one the save returns.
+  const [version, setVersion] = useState(template.version);
   const [status, setStatus] = useState<ActionState>(null);
   const [pending, startTransition] = useTransition();
   const roles = parseRoleList(rolesText);
 
   function save() {
     startTransition(async () => {
-      setStatus(
-        await saveTemplateAction(template.id, {
-          name,
-          documentType,
-          roles,
-          content,
-          quote,
-          paymentMode,
-          paymentPercent: paymentPercent === "" ? null : Number(paymentPercent),
-        }),
-      );
+      const result = await saveTemplateAction(template.id, {
+        version,
+        name,
+        documentType,
+        roles,
+        content,
+        quote,
+        paymentMode,
+        paymentPercent: paymentPercent === "" ? null : Number(paymentPercent),
+      });
+      setStatus(result);
+      if (result?.ok && result.version !== undefined) setVersion(result.version);
     });
   }
 

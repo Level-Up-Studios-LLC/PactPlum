@@ -32,10 +32,10 @@ export async function createDocumentAction(_prev: ActionState, formData: FormDat
 export async function saveDocumentAction(id: string, input: unknown): Promise<ActionState> {
   const { ctx } = await requireMember();
   try {
-    await updateDocument(db, ctx, id, input);
+    const document = await updateDocument(db, ctx, id, input);
     revalidatePath("/app/documents");
     revalidatePath(`/app/documents/${id}`);
-    return { ok: true, message: "Document saved." };
+    return { ok: true, message: "Document saved.", version: document.version };
   } catch (error) {
     return actionError("documents", error);
   }

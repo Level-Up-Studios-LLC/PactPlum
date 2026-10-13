@@ -72,6 +72,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       <DocumentWorkspace
         document={{
           id: document.id,
+          version: document.version,
           name: document.name,
           contactId: document.contactId,
           roles: document.roles,

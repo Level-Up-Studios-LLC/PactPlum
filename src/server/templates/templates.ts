@@ -1,11 +1,11 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { templates } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { DOCUMENT_TYPES, PAYMENT_MODES } from "@/lib/documents";
 import { emptyContent } from "@/lib/editor/content";
-import { checkContent, checkPayment, checkQuote, RolesSchema } from "@/server/content-rules";
-import { NotFoundError } from "@/server/errors";
+import { checkContent, checkPayment, checkQuote, RolesSchema, VersionSchema } from "@/server/content-rules";
+import { ConflictError, NotFoundError } from "@/server/errors";
 import type { OrgContext } from "@/server/tenancy";
 import { parseInput } from "@/server/validation";
 
@@ -29,7 +29,9 @@ const UpdateInput = z
     paymentMode: z.enum(PAYMENT_MODES),
     paymentPercent: z.number().nullable(),
   })
-  .partial();
+  .partial()
+  // The version of the template the caller loaded; required, so a save never overwrites a newer one blindly.
+  .extend({ version: VersionSchema });
 
 function scoped(ctx: OrgContext, id: string) {
   return and(eq(templates.id, id), eq(templates.organizationId, ctx.organizationId));
@@ -84,11 +86,16 @@ export async function updateTemplate(db: Db, ctx: OrgContext, id: string, input:
       content,
       quote,
       ...payment,
+      version: sql`${templates.version} + 1`,
     })
-    .where(scoped(ctx, id))
+    .where(and(scoped(ctx, id), eq(templates.version, data.version)))
     .returning();
-  if (!template) throw new NotFoundError("Template not found.");
-  return template;
+  if (template) return template;
+  // Nothing matched: the template is gone, or someone saved it after the caller loaded it.
+  await getTemplate(db, ctx, id);
+  throw new ConflictError(
+    "Someone else saved this template since you opened it. Reload the page to see their changes, then make your edits again.",
+  );
 }
 
 export async function duplicateTemplate(db: Db, ctx: OrgContext, id: string): Promise<Template> {

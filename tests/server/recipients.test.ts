@@ -26,7 +26,7 @@ beforeEach(async () => {
   sam = (await createContact(db, a, { name: "Sam", email: "sam@studio.com" })).id;
   pat = (await createContact(db, a, { name: "Pat", email: "pat@acme.com" })).id;
   documentId = (await createDocument(db, a, { type: "contract" })).id;
-  await updateDocument(db, a, documentId, { roles: ["Client", "Agency"] });
+  await updateDocument(db, a, documentId, { version: 1, roles: ["Client", "Agency"] });
 });
 afterEach(async () => {
   await close();

@@ -29,10 +29,10 @@ export async function createTemplateAction(_prev: ActionState, formData: FormDat
 export async function saveTemplateAction(id: string, input: unknown): Promise<ActionState> {
   const { ctx } = await requireMember();
   try {
-    await updateTemplate(db, ctx, id, input);
+    const template = await updateTemplate(db, ctx, id, input);
     revalidatePath("/app/templates");
     revalidatePath(`/app/templates/${id}`);
-    return { ok: true, message: "Template saved." };
+    return { ok: true, message: "Template saved.", version: template.version };
   } catch (error) {
     return actionError("templates", error);
   }

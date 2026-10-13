@@ -11,6 +11,10 @@ export const RolesSchema = z
   .max(10, "A document can have at most 10 roles.")
   .refine((roles) => new Set(roles.map((role) => role.toLowerCase())).size === roles.length, "Role names must be unique.");
 
+const VERSION_MESSAGE = "Reload the page and try again.";
+/** The saved version the caller loaded; every update must send it. */
+export const VersionSchema = z.number(VERSION_MESSAGE).int(VERSION_MESSAGE).positive(VERSION_MESSAGE);
+
 export function checkContent(input: unknown, roles: string[]): DocContent {
   const result = validateContent(input, roles);
   if (!result.ok) throw new ValidationError(result.error);

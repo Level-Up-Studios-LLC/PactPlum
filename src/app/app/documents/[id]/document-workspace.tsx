@@ -17,6 +17,7 @@ import { saveDocumentAction } from "../actions";
 
 export type DocumentData = {
   id: string;
+  version: number;
   name: string;
   contactId: string | null;
   roles: string[];
@@ -52,6 +53,8 @@ export function DocumentWorkspace({
   const [variables, setVariables] = useState<Record<string, string>>(document.variables);
   const [paymentMode, setPaymentMode] = useState<PaymentMode>(document.paymentMode);
   const [paymentPercent, setPaymentPercent] = useState(document.paymentPercent?.toString() ?? "");
+  // The saved version this page is based on; sent with each save and replaced by the one the save returns.
+  const [version, setVersion] = useState(document.version);
   const [status, setStatus] = useState<ActionState>(null);
   const [pending, startTransition] = useTransition();
   const roles = parseRoleList(rolesText);
@@ -60,6 +63,7 @@ export function DocumentWorkspace({
   function save() {
     startTransition(async () => {
       const result = await saveDocumentAction(document.id, {
+        version,
         name,
         contactId: contactId === "" ? null : contactId,
         roles,
@@ -70,7 +74,10 @@ export function DocumentWorkspace({
         paymentPercent: paymentPercent === "" ? null : Number(paymentPercent),
       });
       setStatus(result);
-      if (result?.ok) router.refresh();
+      if (result?.ok) {
+        if (result.version !== undefined) setVersion(result.version);
+        router.refresh();
+      }
     });
   }
 

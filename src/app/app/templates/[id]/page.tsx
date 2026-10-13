@@ -25,6 +25,7 @@ export default async function TemplatePage({ params }: { params: Promise<{ id: s
       <TemplateWorkspace
         template={{
           id: template.id,
+          version: template.version,
           name: template.name,
           documentType: template.documentType,
           roles: template.roles,

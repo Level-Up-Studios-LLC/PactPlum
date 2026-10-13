@@ -83,6 +83,8 @@ export const templates = pgTable(
     quote: jsonb("quote").$type<Quote>(),
     paymentMode: paymentMode("payment_mode").notNull().default("off"),
     paymentPercent: integer("payment_percent"),
+    // Bumped by every save; a save made from an older copy of the page is refused.
+    version: integer("version").notNull().default(1),
     createdByUserId: text("created_by_user_id").references(() => user.id, { onDelete: "set null" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -114,6 +116,8 @@ export const documents = pgTable(
     total: money("total").notNull().default(0),
     paymentMode: paymentMode("payment_mode").notNull().default("off"),
     paymentPercent: integer("payment_percent"),
+    // Bumped by every save; a save made from an older copy of the page is refused.
+    version: integer("version").notNull().default(1),
     // Set by Plan 3 when a revision is created on send.
     currentRevisionId: text("current_revision_id"),
     dateSent: timestamp("date_sent", { withTimezone: true }),
