@@ -1,0 +1,83 @@
+# PactPlum
+
+Open-source proposals, quotes, contracts and invoices with e-signatures and Stripe payments. Free to self-host under the MIT license.
+
+> Status: early development. Not ready for production use.
+
+## Run with Docker
+
+1. Copy the environment file: `cp .env.example .env`.
+2. Set `BETTER_AUTH_SECRET` to a random value of at least 32 characters (`openssl rand -base64 32`).
+3. Set `BETTER_AUTH_URL` to the public URL of your install (for local use, `http://localhost:3000`).
+4. Start everything: `docker compose --profile app up --build -d`.
+5. Open the URL. The first account you create becomes the **owner**. Everyone else needs an invitation or an allowed email domain (Settings → Allowed sign-up domains). With the default Docker setup the verification email arrives in Mailpit at http://localhost:8025.
+
+`docker compose --profile app up` starts PactPlum together with Postgres and Mailpit; plain `docker compose up` starts only Postgres and Mailpit for development. The `.env` file must exist before you start the app service.
+
+By default the Docker setup sends all email to Mailpit (http://localhost:8025), even if you set SMTP values in `.env`, because `compose.yaml` overrides `SMTP_HOST` and `SMTP_PORT` for the `app` service. To send real email, delete those two lines from the `app` service's `environment:` block in `compose.yaml` and set your provider's values in `.env`.
+
+## Run for development
+
+1. Install Node 24 and Docker.
+2. `cp .env.example .env` and set `BETTER_AUTH_SECRET`.
+3. `docker compose up -d db mailpit`
+4. `npm install` and `npm run db:migrate`
+5. `npm run dev`, then open http://localhost:3000.
+
+Checks: `npm run lint`, `npm run typecheck`, `npm test`.
+
+## Email (SMTP)
+
+PactPlum sends email through any SMTP server. Without SMTP, sign-up still works but email verification, password reset and invitation emails are disabled.
+
+Without SMTP, people who sign up with email and password cannot verify their address, so they can only join as members by signing in with a provider that verifies email (for example Google or a Microsoft work account). The first account (the owner) can always sign up.
+
+| Provider | SMTP_HOST | SMTP_PORT | SMTP_SECURE | Notes |
+|---|---|---|---|---|
+| Google Workspace / Gmail | smtp.gmail.com | 465 | true | Use an app password for `SMTP_PASSWORD`. |
+| Microsoft 365 | smtp.office365.com | 587 | false | SMTP AUTH must be enabled for the mailbox. |
+| Brevo | smtp-relay.brevo.com | 587 | false | `SMTP_USER` is your Brevo SMTP login; `SMTP_PASSWORD` is an SMTP key. |
+
+`SMTP_FROM_EMAIL` must be an address your provider allows you to send from. Use Settings → Send test email to check the configuration.
+
+## Login providers
+
+Email and password always works. Each provider below appears on the sign-in page only when both its client id and secret are set. Register an OAuth app with the provider and use this redirect URL:
+
+`{BETTER_AUTH_URL}/api/auth/callback/{provider}`
+
+Members join only with a verified email address. Clients who view, sign or pay never need an account.
+
+| Provider | Variables | `{provider}` |
+|---|---|---|
+| Google | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | `google` |
+| Microsoft (Entra ID) | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID` (default `common`) | `microsoft` |
+| LinkedIn | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` | `linkedin` |
+| Slack | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` | `slack` |
+
+LinkedIn may not share an email address. PactPlum refuses sign-in without one and asks the user to choose another method.
+
+## Running behind a proxy
+
+Login rate limiting uses the client IP. If PactPlum runs behind a reverse proxy or load balancer, make sure the proxy sets a client IP header and does not pass through client-supplied values, otherwise all users may share one rate-limit bucket. Two optional variables configure this:
+
+- `AUTH_IP_ADDRESS_HEADERS`: comma-separated header names to read the client IP from, in order, for example `x-forwarded-for` or `cf-connecting-ip`.
+- `AUTH_TRUSTED_PROXIES`: comma-separated IP addresses or CIDR ranges of your proxies, for example `192.0.2.10,10.0.0.0/24`. When set, PactPlum walks the forwarded IP chain from the right, skips these trusted hops, and treats the first untrusted address as the client. Use the real addresses of your proxies, not a broad private range that also covers clients.
+
+Leave both empty to keep the defaults.
+
+On serverless hosts such as Vercel the built-in rate limiter keeps its counters in memory per instance, so it limits only weakly; a database-backed limiter is planned.
+
+## Deploy on Vercel
+
+1. Create a Postgres database (for example Neon or Supabase) and set `DATABASE_URL`.
+2. Set the variables from `.env.example` in the Vercel project, with `BETTER_AUTH_URL` set to your production URL. Set SMTP to a real provider or leave `SMTP_HOST` empty — the Mailpit values in `.env.example` do not work on Vercel.
+3. Run `npm run db:migrate` once against the production database before the first deploy and after each release that adds migrations.
+
+## Legal
+
+PactPlum records an audit trail designed around e-signature principles, but it is not legal advice. You are responsible for compliance in your jurisdiction.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
