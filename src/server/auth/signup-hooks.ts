@@ -7,6 +7,8 @@ import { findPendingInvitationByEmail, markInvitationAccepted, normalizeEmail } 
 import type { Role } from "@/server/tenancy";
 import { decideSignUp, SIGN_UP_MESSAGES, type SignUpDecision } from "./signup-policy";
 
+class StaleInvitationError extends Error {}
+
 function isUniqueViolation(error: unknown): boolean {
   const e = error as { code?: string; cause?: { code?: string } };
   return e?.code === "23505" || e?.cause?.code === "23505";
@@ -59,14 +61,21 @@ export async function applyDecision(
   now: Date = new Date(),
 ): Promise<Role | null> {
   if (!decision.allowed) return null;
+  const { invitationId } = decision;
   try {
-    await db.insert(members).values({ organizationId, userId, role: decision.role });
+    // Membership and the invitation claim commit together or not at all.
+    await db.transaction(async (tx) => {
+      await tx.insert(members).values({ organizationId, userId, role: decision.role });
+      if (invitationId && !(await markInvitationAccepted(tx, invitationId, now))) {
+        throw new StaleInvitationError();
+      }
+    });
   } catch (error) {
-    // Lost a race for the single owner slot: leave the user without membership.
-    if (isUniqueViolation(error)) return null;
+    // Lost a race for the single owner slot, or the invitation was accepted or
+    // replaced after the decision: leave the user without membership.
+    if (isUniqueViolation(error) || error instanceof StaleInvitationError) return null;
     throw error;
   }
-  if (decision.invitationId) await markInvitationAccepted(db, decision.invitationId, now);
   return decision.role;
 }
 
@@ -118,11 +127,18 @@ export async function admitUser(
   const existing = await findMembershipRole(db, organizationId, user.id);
   if (existing) return existing;
 
-  const decision = await decideForOrganization(db, organizationId, user.email, now);
-  if (!decision.allowed) return null;
-  if (!user.emailVerified && (decision.role === "member" || options.ownerRequiresVerification)) return null;
+  // A second attempt re-decides after a lost race, for example when a re-invite
+  // replaced the invitation between the decision and the claim.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const decision = await decideForOrganization(db, organizationId, user.email, now);
+    if (!decision.allowed) return null;
+    if (!user.emailVerified && (decision.role === "member" || options.ownerRequiresVerification)) return null;
 
-  const role = await applyDecision(db, organizationId, user.id, decision, now);
-  // A concurrent admit of the same user may have inserted the row first.
-  return role ?? (await findMembershipRole(db, organizationId, user.id));
+    const role = await applyDecision(db, organizationId, user.id, decision, now);
+    if (role) return role;
+    // A concurrent admit of the same user may have inserted the row first.
+    const admitted = await findMembershipRole(db, organizationId, user.id);
+    if (admitted) return admitted;
+  }
+  return null;
 }

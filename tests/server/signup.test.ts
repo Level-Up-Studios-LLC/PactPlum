@@ -178,6 +178,34 @@ describe("sign-up hooks", () => {
     expect(await applyDecision(db, organizationId, secondId, { allowed: true, role: "owner" }, now)).toBeNull();
     expect(await db.select().from(members)).toHaveLength(1);
   });
+
+  it("rolls back membership when the invitation was already claimed", async () => {
+    const { ownerId, organizationId } = await bootstrapOwner();
+    const ctx = { organizationId, userId: ownerId, role: "owner" as const };
+    const { invitationId } = await createInvitation(db, ctx, { email: "jane@acme.com" }, now);
+    await db.update(invitations).set({ acceptedAt: now }).where(eq(invitations.id, invitationId));
+    const janeId = await insertUser(db, "jane@acme.com");
+
+    const decision = { allowed: true as const, role: "member" as const, invitationId };
+    expect(await applyDecision(db, organizationId, janeId, decision, now)).toBeNull();
+    expect(await db.select().from(members).where(eq(members.userId, janeId))).toHaveLength(0);
+  });
+
+  it("admits through the new invitation when a re-invite replaced the one it decided on", async () => {
+    const { ownerId, organizationId } = await bootstrapOwner();
+    const ctx = { organizationId, userId: ownerId, role: "owner" as const };
+    const { invitationId: oldId } = await createInvitation(db, ctx, { email: "jane@acme.com" }, now);
+    const janeId = await insertUser(db, "jane@acme.com");
+    await createInvitation(db, ctx, { email: "jane@acme.com" }, now);
+
+    const stale = { allowed: true as const, role: "member" as const, invitationId: oldId };
+    expect(await applyDecision(db, organizationId, janeId, stale, now)).toBeNull();
+    const jane = { id: janeId, email: "jane@acme.com", emailVerified: true };
+    expect(await admitUser(db, jane, noOwnerVerification, now)).toBe("member");
+    const rows = await db.select().from(invitations).where(eq(invitations.email, "jane@acme.com"));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].acceptedAt).toEqual(now);
+  });
 });
 
 describe("beforeUserCreate", () => {
