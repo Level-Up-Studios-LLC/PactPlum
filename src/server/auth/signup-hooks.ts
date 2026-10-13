@@ -102,12 +102,16 @@ export async function beforeUserCreate(
  * Grants membership to an eligible user. Idempotent, safe to call on every
  * user create/update and session create. A member is admitted only once the
  * user's email is verified, because invitations and allowed domains are
- * matched on the email address. The first user may be unverified so a fresh
- * install without SMTP can bootstrap its owner.
+ * matched on the email address. The owner must verify too when
+ * `ownerRequiresVerification` is set (SMTP is configured, so a verification
+ * email can be delivered); without SMTP the first user may be unverified so a
+ * fresh install can bootstrap its owner. An unverified would-be owner stays
+ * pending and is admitted by a later call once verified.
  */
 export async function admitUser(
   db: Db,
   user: { id: string; email: string; emailVerified: boolean },
+  options: { ownerRequiresVerification: boolean },
   now: Date = new Date(),
 ): Promise<Role | null> {
   const organizationId = await ensureOrganization(db);
@@ -116,7 +120,7 @@ export async function admitUser(
 
   const decision = await decideForOrganization(db, organizationId, user.email, now);
   if (!decision.allowed) return null;
-  if (decision.role === "member" && !user.emailVerified) return null;
+  if (!user.emailVerified && (decision.role === "member" || options.ownerRequiresVerification)) return null;
 
   const role = await applyDecision(db, organizationId, user.id, decision, now);
   // A concurrent admit of the same user may have inserted the row first.

@@ -47,6 +47,9 @@ describe("decideSignUp", () => {
   });
 });
 
+const noOwnerVerification = { ownerRequiresVerification: false };
+const ownerVerification = { ownerRequiresVerification: true };
+
 describe("sign-up hooks", () => {
   let db: Db;
   let close: () => Promise<void>;
@@ -61,14 +64,14 @@ describe("sign-up hooks", () => {
 
   async function bootstrapOwner() {
     const ownerId = await insertUser(db, "owner@acme.com");
-    const role = await admitUser(db, { id: ownerId, email: "owner@acme.com", emailVerified: true }, now);
+    const role = await admitUser(db, { id: ownerId, email: "owner@acme.com", emailVerified: true }, noOwnerVerification, now);
     expect(role).toBe("owner");
     return { ownerId, organizationId: await ensureOrganization(db) };
   }
 
   it("creates the organization and makes the first user owner", async () => {
     const userId = await insertUser(db, "owner@acme.com");
-    expect(await admitUser(db, { id: userId, email: "owner@acme.com", emailVerified: true }, now)).toBe("owner");
+    expect(await admitUser(db, { id: userId, email: "owner@acme.com", emailVerified: true }, noOwnerVerification, now)).toBe("owner");
     expect(await db.select().from(organizations)).toHaveLength(1);
     const [membership] = await db.select().from(members);
     expect(membership.role).toBe("owner");
@@ -76,14 +79,40 @@ describe("sign-up hooks", () => {
 
   it("lets the first user bootstrap as owner without a verified email", async () => {
     const userId = await insertUser(db, "owner@acme.com");
-    expect(await admitUser(db, { id: userId, email: "owner@acme.com", emailVerified: false }, now)).toBe("owner");
+    expect(await admitUser(db, { id: userId, email: "owner@acme.com", emailVerified: false }, noOwnerVerification, now)).toBe("owner");
+  });
+
+  it("keeps an unverified first user pending when the owner must verify, then makes them owner once verified", async () => {
+    const userId = await insertUser(db, "owner@acme.com");
+    const unverified = { id: userId, email: "owner@acme.com", emailVerified: false };
+    expect(await admitUser(db, unverified, ownerVerification, now)).toBeNull();
+    expect(await db.select().from(members)).toHaveLength(0);
+
+    expect(await admitUser(db, { ...unverified, emailVerified: true }, ownerVerification, now)).toBe("owner");
+    expect(await db.select().from(members)).toHaveLength(1);
+  });
+
+  it("makes the first early user to verify the owner when verification is required", async () => {
+    const firstId = await insertUser(db, "first@acme.com");
+    const secondId = await insertUser(db, "second@acme.com");
+    const first = { id: firstId, email: "first@acme.com", emailVerified: false };
+    const second = { id: secondId, email: "second@acme.com", emailVerified: false };
+    expect(await admitUser(db, first, ownerVerification, now)).toBeNull();
+    expect(await admitUser(db, second, ownerVerification, now)).toBeNull();
+
+    // The second user verifies first and wins the owner slot.
+    expect(await admitUser(db, { ...second, emailVerified: true }, ownerVerification, now)).toBe("owner");
+    expect(await admitUser(db, { ...first, emailVerified: true }, ownerVerification, now)).toBeNull();
+    const rows = await db.select().from(members);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].userId).toBe(secondId);
   });
 
   it("refuses an uninvited second user", async () => {
     await bootstrapOwner();
     expect(await resolveSignUp(db, "stranger@other.com", now)).toEqual({ allowed: false, reason: "not_invited" });
     const strangerId = await insertUser(db, "stranger@other.com");
-    expect(await admitUser(db, { id: strangerId, email: "stranger@other.com", emailVerified: true }, now)).toBeNull();
+    expect(await admitUser(db, { id: strangerId, email: "stranger@other.com", emailVerified: true }, noOwnerVerification, now)).toBeNull();
     expect(await db.select().from(members)).toHaveLength(1);
   });
 
@@ -92,7 +121,7 @@ describe("sign-up hooks", () => {
     await createInvitation(db, { organizationId, userId: ownerId, role: "owner" }, { email: "Jane@Acme.com" }, now);
     const janeId = await insertUser(db, "jane@acme.com");
 
-    expect(await admitUser(db, { id: janeId, email: "jane@acme.com", emailVerified: false }, now)).toBeNull();
+    expect(await admitUser(db, { id: janeId, email: "jane@acme.com", emailVerified: false }, noOwnerVerification, now)).toBeNull();
     expect(await db.select().from(members)).toHaveLength(1);
     const [invitation] = await db.select().from(invitations);
     expect(invitation.acceptedAt).toBeNull();
@@ -103,8 +132,8 @@ describe("sign-up hooks", () => {
     await createInvitation(db, { organizationId, userId: ownerId, role: "owner" }, { email: "Jane@Acme.com" }, now);
     const janeId = await insertUser(db, "jane@acme.com");
 
-    expect(await admitUser(db, { id: janeId, email: "jane@acme.com", emailVerified: false }, now)).toBeNull();
-    expect(await admitUser(db, { id: janeId, email: "JANE@acme.com", emailVerified: true }, now)).toBe("member");
+    expect(await admitUser(db, { id: janeId, email: "jane@acme.com", emailVerified: false }, noOwnerVerification, now)).toBeNull();
+    expect(await admitUser(db, { id: janeId, email: "JANE@acme.com", emailVerified: true }, noOwnerVerification, now)).toBe("member");
     const [invitation] = await db.select().from(invitations);
     expect(invitation.acceptedAt).toEqual(now);
   });
@@ -117,15 +146,15 @@ describe("sign-up hooks", () => {
       .where(eq(organizations.id, organizationId));
     const userId = await insertUser(db, "dana@acme.com");
 
-    expect(await admitUser(db, { id: userId, email: "dana@acme.com", emailVerified: false }, now)).toBeNull();
-    expect(await admitUser(db, { id: userId, email: "dana@acme.com", emailVerified: true }, now)).toBe("member");
+    expect(await admitUser(db, { id: userId, email: "dana@acme.com", emailVerified: false }, noOwnerVerification, now)).toBeNull();
+    expect(await admitUser(db, { id: userId, email: "dana@acme.com", emailVerified: true }, noOwnerVerification, now)).toBe("member");
   });
 
   it("is idempotent for an already admitted user", async () => {
     const { ownerId } = await bootstrapOwner();
     const owner = { id: ownerId, email: "owner@acme.com", emailVerified: true };
-    expect(await admitUser(db, owner, now)).toBe("owner");
-    expect(await admitUser(db, owner, now)).toBe("owner");
+    expect(await admitUser(db, owner, noOwnerVerification, now)).toBe("owner");
+    expect(await admitUser(db, owner, noOwnerVerification, now)).toBe("owner");
     expect(await db.select().from(members)).toHaveLength(1);
   });
 
@@ -133,10 +162,10 @@ describe("sign-up hooks", () => {
     const { ownerId, organizationId } = await bootstrapOwner();
     const lateId = await insertUser(db, "late@acme.com");
     const late = { id: lateId, email: "late@acme.com", emailVerified: true };
-    expect(await admitUser(db, late, now)).toBeNull();
+    expect(await admitUser(db, late, noOwnerVerification, now)).toBeNull();
 
     await createInvitation(db, { organizationId, userId: ownerId, role: "owner" }, { email: "late@acme.com" }, now);
-    expect(await admitUser(db, late, now)).toBe("member");
+    expect(await admitUser(db, late, noOwnerVerification, now)).toBe("member");
     expect(await db.select().from(members)).toHaveLength(2);
   });
 
@@ -165,7 +194,7 @@ describe("beforeUserCreate", () => {
 
   it("rejects an uninvited email with a coded FORBIDDEN APIError", async () => {
     const ownerId = await insertUser(db, "owner@acme.com");
-    await admitUser(db, { id: ownerId, email: "owner@acme.com", emailVerified: true }, now);
+    await admitUser(db, { id: ownerId, email: "owner@acme.com", emailVerified: true }, noOwnerVerification, now);
 
     const error = await beforeUserCreate(db, { email: "stranger@other.com" }, now).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(APIError);
@@ -182,7 +211,7 @@ describe("beforeUserCreate", () => {
 
   it("returns the lowercased email for an invited user", async () => {
     const ownerId = await insertUser(db, "owner@acme.com");
-    await admitUser(db, { id: ownerId, email: "owner@acme.com", emailVerified: true }, now);
+    await admitUser(db, { id: ownerId, email: "owner@acme.com", emailVerified: true }, noOwnerVerification, now);
     const organizationId = await ensureOrganization(db);
     await createInvitation(db, { organizationId, userId: ownerId, role: "owner" }, { email: "jane@acme.com" }, now);
 

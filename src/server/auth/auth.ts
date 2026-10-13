@@ -11,6 +11,7 @@ import { admitUser, beforeUserCreate } from "./signup-hooks";
 
 const env = getEnv();
 const mailer = createMailerFromEnv(env);
+const admitOptions = { ownerRequiresVerification: requiresEmailVerification(env) };
 
 function sendInBackground(promise: Promise<unknown>) {
   // Not awaited, so response timing does not reveal whether an account exists.
@@ -32,12 +33,16 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: requiresEmailVerification(env),
+    revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
       sendInBackground(mailer.send({ to: user.email, ...resetPasswordEmail(url) }));
     },
   },
   emailVerification: {
     sendOnSignUp: requiresEmailVerification(env),
+    // Only consulted when verification is required: an unverified user (including the pending
+    // first owner) gets a fresh link by trying to sign in.
+    sendOnSignIn: true,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }) => {
       sendInBackground(mailer.send({ to: user.email, ...verificationEmail(url) }));
@@ -51,13 +56,13 @@ export const auth = betterAuth({
       create: {
         before: async (user) => ({ data: { ...user, ...(await beforeUserCreate(db, user)) } }),
         after: async (user) => {
-          await admitUser(db, user);
+          await admitUser(db, user, admitOptions);
         },
       },
       update: {
         // Fires when email verification flips emailVerified.
         after: async (user) => {
-          await admitUser(db, user);
+          await admitUser(db, user, admitOptions);
         },
       },
     },
@@ -70,7 +75,7 @@ export const auth = betterAuth({
             .from(schema.user)
             .where(eq(schema.user.id, session.userId))
             .limit(1);
-          if (row) await admitUser(db, row);
+          if (row) await admitUser(db, row, admitOptions);
         },
       },
     },
