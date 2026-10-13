@@ -117,8 +117,13 @@ describe("computeQuote", () => {
     expect(() => computeQuote(quote)).toThrow(new QuoteError('"Item a": Division by zero in formula.'));
   });
 
-  it("rejects a total above the maximum amount", () => {
+  it("rejects a quote total above the maximum amount, with every line within it", () => {
+    const quote = q({ sections: [{ id: "s", items: [line("a", 600_000_000_000, 1), line("b", 600_000_000_000, 1)] }] });
+    expect(() => computeQuote(quote)).toThrow(new QuoteError("The quote total is too large."));
+  });
+
+  it("rejects a line amount above the maximum amount, naming the line", () => {
     const quote = q({ sections: [{ id: "s", items: [line("a", 999_999_999_998, 2)] }] });
-    expect(() => computeQuote(quote)).toThrow(QuoteError);
+    expect(() => computeQuote(quote)).toThrow(new QuoteError('"Item a" is too large.'));
   });
 });
