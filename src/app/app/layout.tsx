@@ -12,6 +12,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <span className="font-semibold text-[#6b2d5c]">{APP_NAME}</span>
           <Link href="/app">Dashboard</Link>
           <Link href="/app/contacts">Contacts</Link>
+          <Link href="/app/catalog">Catalog</Link>
           <Link href="/app/settings">Settings</Link>
         </nav>
         <div className="flex items-center gap-4 text-sm text-neutral-600">
