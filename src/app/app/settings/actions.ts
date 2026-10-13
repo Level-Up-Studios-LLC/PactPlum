@@ -40,7 +40,10 @@ export async function inviteMemberAction(_prev: ActionState, formData: FormData)
   try {
     const invitation = await createInvitation(db, ctx, { email: String(formData.get("email") ?? "") });
     const env = getEnv();
-    const url = `${env.BETTER_AUTH_URL}/sign-up?invite=${invitation.token}`;
+    const url = new URL(
+      `/sign-up?invite=${encodeURIComponent(invitation.token)}`,
+      env.BETTER_AUTH_URL,
+    ).toString();
     const org = await getOrganizationSettings(db, ctx);
     try {
       await createMailerFromEnv(env).send({
