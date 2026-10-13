@@ -2,6 +2,13 @@ import { z } from "zod";
 
 const optionalString = z.string().trim().min(1).optional();
 
+// Comma-separated list: trimmed, empty entries dropped, unset when nothing is left.
+const optionalList = z
+  .string()
+  .transform((value) => value.split(",").map((item) => item.trim()).filter(Boolean))
+  .transform((items) => (items.length > 0 ? items : undefined))
+  .optional();
+
 const EnvSchema = z.object({
   DEPLOYMENT_MODE: z.enum(["self-hosted", "hosted"]).default("self-hosted"),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
@@ -16,6 +23,8 @@ const EnvSchema = z.object({
   SMTP_USER: optionalString,
   SMTP_PASSWORD: optionalString,
   SMTP_FROM_EMAIL: z.email("SMTP_FROM_EMAIL must be an email address").optional(),
+  AUTH_IP_ADDRESS_HEADERS: optionalList,
+  AUTH_TRUSTED_PROXIES: optionalList,
   GOOGLE_CLIENT_ID: optionalString,
   GOOGLE_CLIENT_SECRET: optionalString,
   MICROSOFT_CLIENT_ID: optionalString,

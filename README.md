@@ -10,7 +10,7 @@ Open-source proposals, quotes, contracts and invoices with e-signatures and Stri
 2. Set `BETTER_AUTH_SECRET` to a random value of at least 32 characters (`openssl rand -base64 32`).
 3. Set `BETTER_AUTH_URL` to the public URL of your install (for local use, `http://localhost:3000`).
 4. Start everything: `docker compose --profile app up --build -d`.
-5. Open the URL. The first account you create becomes the **owner**. Everyone else needs an invitation or an allowed email domain (Settings → Allowed sign-up domains).
+5. Open the URL. The first account you create becomes the **owner**. Everyone else needs an invitation or an allowed email domain (Settings → Allowed sign-up domains). With the default Docker setup the verification email arrives in Mailpit at http://localhost:8025.
 
 `docker compose --profile app up` starts PactPlum together with Postgres and Mailpit; plain `docker compose up` starts only Postgres and Mailpit for development. The `.env` file must exist before you start the app service.
 
@@ -59,12 +59,19 @@ LinkedIn may not share an email address. PactPlum refuses sign-in without one an
 
 ## Running behind a proxy
 
-Login rate limiting uses the client IP. If PactPlum runs behind a reverse proxy or load balancer, make sure the proxy sets `X-Forwarded-For` and does not pass through client-supplied values, otherwise all users may share one rate-limit bucket.
+Login rate limiting uses the client IP. If PactPlum runs behind a reverse proxy or load balancer, make sure the proxy sets a client IP header and does not pass through client-supplied values, otherwise all users may share one rate-limit bucket. Two optional variables configure this:
+
+- `AUTH_IP_ADDRESS_HEADERS`: comma-separated header names to read the client IP from, in order, for example `x-forwarded-for` or `cf-connecting-ip`.
+- `AUTH_TRUSTED_PROXIES`: comma-separated IP addresses or CIDR ranges of your proxies, for example `192.0.2.10,10.0.0.0/24`. When set, PactPlum walks the forwarded IP chain from the right, skips these trusted hops, and treats the first untrusted address as the client. Use the real addresses of your proxies, not a broad private range that also covers clients.
+
+Leave both empty to keep the defaults.
+
+On serverless hosts such as Vercel the built-in rate limiter keeps its counters in memory per instance, so it limits only weakly; a database-backed limiter is planned.
 
 ## Deploy on Vercel
 
 1. Create a Postgres database (for example Neon or Supabase) and set `DATABASE_URL`.
-2. Set the variables from `.env.example` in the Vercel project, with `BETTER_AUTH_URL` set to your production URL.
+2. Set the variables from `.env.example` in the Vercel project, with `BETTER_AUTH_URL` set to your production URL. Set SMTP to a real provider or leave `SMTP_HOST` empty — the Mailpit values in `.env.example` do not work on Vercel.
 3. Run `npm run db:migrate` once against the production database before the first deploy and after each release that adds migrations.
 
 ## Legal

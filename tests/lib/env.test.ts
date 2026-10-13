@@ -42,6 +42,30 @@ describe("parseEnv", () => {
   });
 });
 
+describe("proxy settings", () => {
+  it("leaves proxy lists unset by default", () => {
+    const env = parseEnv(base);
+    expect(env.AUTH_IP_ADDRESS_HEADERS).toBeUndefined();
+    expect(env.AUTH_TRUSTED_PROXIES).toBeUndefined();
+  });
+
+  it("parses comma-separated lists, trimming and dropping empties", () => {
+    const env = parseEnv({
+      ...base,
+      AUTH_IP_ADDRESS_HEADERS: " x-forwarded-for , ,cf-connecting-ip,",
+      AUTH_TRUSTED_PROXIES: "192.0.2.10, 10.0.0.0/24",
+    });
+    expect(env.AUTH_IP_ADDRESS_HEADERS).toEqual(["x-forwarded-for", "cf-connecting-ip"]);
+    expect(env.AUTH_TRUSTED_PROXIES).toEqual(["192.0.2.10", "10.0.0.0/24"]);
+  });
+
+  it("treats a list of only separators as unset", () => {
+    const env = parseEnv({ ...base, AUTH_IP_ADDRESS_HEADERS: " , ,", AUTH_TRUSTED_PROXIES: "," });
+    expect(env.AUTH_IP_ADDRESS_HEADERS).toBeUndefined();
+    expect(env.AUTH_TRUSTED_PROXIES).toBeUndefined();
+  });
+});
+
 describe("enabledSocialProviders", () => {
   it("includes only providers with both id and secret", () => {
     const env = parseEnv({

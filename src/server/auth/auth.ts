@@ -51,6 +51,13 @@ export const auth = betterAuth({
   socialProviders: enabledSocialProviders(env),
   // Enables Better Auth's built-in rate limiter.
   rateLimit: { enabled: true, window: 60, max: 30 },
+  // Only set when configured, so Better Auth keeps its defaults otherwise.
+  advanced: {
+    ipAddress: {
+      ...(env.AUTH_IP_ADDRESS_HEADERS && { ipAddressHeaders: env.AUTH_IP_ADDRESS_HEADERS }),
+      ...(env.AUTH_TRUSTED_PROXIES && { trustedProxies: env.AUTH_TRUSTED_PROXIES }),
+    },
+  },
   databaseHooks: {
     user: {
       create: {
