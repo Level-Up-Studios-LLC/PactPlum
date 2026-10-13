@@ -8,6 +8,7 @@ import {
   resolveVariables,
   validateContent,
 } from "@/lib/editor/content";
+import { Field } from "@/lib/editor/extensions";
 
 const text = (value: string): JSONContent => ({ type: "text", text: value });
 const p = (...content: JSONContent[]): JSONContent => ({ type: "paragraph", content });
@@ -49,8 +50,12 @@ describe("validateContent", () => {
     [doc({ type: "script", content: [text("alert(1)")] }), "Document content is not valid."],
     [doc(p({ type: "heading", attrs: { level: 1 }, content: [text("nested")] })), "Document content is not valid."],
     [doc({ type: "quoteBlock" }, { type: "quoteBlock" }), "A document can have only one pricing table."],
-    [doc(p(field(), field())), "Every field needs a unique id."],
-    [doc(p(field({ id: "" }))), "Every field needs a unique id."],
+    [doc(p(field(), field())), "The Signature field for Client has a duplicate id. Delete it and insert the field again."],
+    [
+      doc(p(field(), field({ label: "Initials", kind: "text" }))),
+      "The Initials field for Client has a duplicate id. Delete it and insert the field again.",
+    ],
+    [doc(p(field({ id: "" }))), "Every field needs an id."],
     [doc(p(field({ kind: "stamp" }))), "A field has an unknown type."],
     [doc(p(field({ role: "Witness" }))), 'The Signature field uses the role "Witness", which is not one of this document\'s roles.'],
   ])("rejects %j", (input, error) => {
@@ -60,6 +65,24 @@ describe("validateContent", () => {
   it("rejects content larger than one megabyte", () => {
     const big = doc(p(text("x".repeat(1_000_001))));
     expect(validateContent(big, ["Client"])).toEqual({ ok: false, error: "Document content is too large." });
+  });
+});
+
+describe("field id attribute", () => {
+  it("gives a pasted field a new id instead of its data-id", () => {
+    const attributes = Field.config.addAttributes?.call({} as never) as Record<string, { parseHTML: (element: HTMLElement) => unknown }>;
+    const element = { getAttribute: () => "dup" } as unknown as HTMLElement;
+    const first = attributes.id.parseHTML(element);
+    const second = attributes.id.parseHTML(element);
+    expect(first).toEqual(expect.any(String));
+    expect(first).not.toBe("dup");
+    expect(first).not.toBe(second);
+  });
+
+  it("still reads the other attributes from the element", () => {
+    const attributes = Field.config.addAttributes?.call({} as never) as Record<string, { parseHTML: (element: HTMLElement) => unknown }>;
+    const element = { getAttribute: () => "Agency" } as unknown as HTMLElement;
+    expect(attributes.role.parseHTML(element)).toBe("Agency");
   });
 });
 

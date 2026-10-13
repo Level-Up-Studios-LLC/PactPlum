@@ -1,6 +1,7 @@
 import { type Extensions, mergeAttributes, Node } from "@tiptap/core";
 import { TableKit } from "@tiptap/extension-table";
 import StarterKit from "@tiptap/starter-kit";
+import { newId } from "@/lib/ids";
 
 // One node set for the browser editor and for server-side content validation.
 
@@ -53,7 +54,12 @@ export const Field = Node.create({
   selectable: true,
   addAttributes() {
     return {
-      id: dataAttribute("id", null),
+      id: {
+        default: null,
+        // Stored content loads from JSON, so HTML parsing only happens for paste: a pasted field gets a fresh id.
+        parseHTML: () => newId(),
+        renderHTML: (attributes: Record<string, unknown>) => ({ "data-id": String(attributes.id ?? "") }),
+      },
       kind: dataAttribute("kind", "signature"),
       role: dataAttribute("role", "Client"),
       label: dataAttribute("label", ""),

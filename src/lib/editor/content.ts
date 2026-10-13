@@ -94,7 +94,13 @@ export function validateContent(input: unknown, roles: string[]): ContentCheck {
   const ids = new Set<string>();
   for (const field of extractFields(content)) {
     if (!(FIELD_KINDS as readonly string[]).includes(field.kind)) return { ok: false, error: "A field has an unknown type." };
-    if (!field.id || ids.has(field.id)) return { ok: false, error: "Every field needs a unique id." };
+    if (!field.id) return { ok: false, error: "Every field needs an id." };
+    if (ids.has(field.id)) {
+      return {
+        ok: false,
+        error: `The ${fieldLabel(field)} field for ${field.role} has a duplicate id. Delete it and insert the field again.`,
+      };
+    }
     ids.add(field.id);
     if (!roles.includes(field.role)) {
       return {
