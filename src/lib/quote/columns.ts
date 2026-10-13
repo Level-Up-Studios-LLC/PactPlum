@@ -31,7 +31,8 @@ function mapItems(quote: Quote, change: (item: QuoteItem) => QuoteItem): Quote["
 
 export function renameColumn(quote: Quote, from: string, to: string): Quote {
   if (from === to) return quote;
-  if (RESERVED_COLUMN_IDS.includes(to)) throw new Error(`"${to}" is a reserved column id.`);
+  const problem = columnIdProblem(quote, from, to);
+  if (problem) throw new Error(problem);
   return {
     ...quote,
     amountFormula: renameInFormula(quote.amountFormula, from, to),
