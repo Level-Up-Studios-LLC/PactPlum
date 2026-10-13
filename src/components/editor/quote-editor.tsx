@@ -11,7 +11,8 @@ import {
   type QuoteItem,
   type QuoteSection,
 } from "@/lib/quote/schema";
-import { computeQuote, type LineTotal, type QuoteTotals } from "@/lib/quote/totals";
+import { changeQuoteCurrency } from "@/lib/quote/currency";
+import { computeQuote,type LineTotal, type QuoteTotals } from "@/lib/quote/totals";
 
 export type CatalogOption = {
   id: string;
@@ -395,6 +396,21 @@ export function QuoteEditor({ quote, onChange, products, currencies, editable = 
   const catalog = products.filter((product) => product.currency === quote.currency);
   const update = (patch: Partial<Quote>) => onChange({ ...quote, ...patch });
 
+  function changeCurrency(currency: string) {
+    const hasAmounts =
+      quote.sections.some((section) => section.items.length > 0) ||
+      quote.discount?.type === "absolute" ||
+      quote.tax?.type === "absolute";
+    if (
+      hasAmounts &&
+      !window.confirm(
+        "Change the currency? Amounts keep the same numbers (12.50 stays 12.50, rounded if the new currency has fewer decimals) and lines are unlinked from catalog products.",
+      )
+    ) {
+      return;
+    }
+    onChange(changeQuoteCurrency(quote, currency));
+  }
   function updateSection(sectionId: string, change: (section: QuoteSection) => QuoteSection) {
     update({ sections: quote.sections.map((section) => (section.id === sectionId ? change(section) : section)) });
   }
@@ -433,7 +449,7 @@ export function QuoteEditor({ quote, onChange, products, currencies, editable = 
         <h3 className="mr-auto text-base font-semibold">Pricing table</h3>
         <label className="text-sm">
           Currency
-          <select value={quote.currency} disabled={!editable} onChange={(event) => update({ currency: event.target.value })} className={cell}>
+          <select value={quote.currency} disabled={!editable} onChange={(event) => changeCurrency(event.target.value)} className={cell}>
             {currencies.map((code) => (
               <option key={code} value={code}>
                 {code}
