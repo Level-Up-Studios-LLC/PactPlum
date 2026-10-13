@@ -14,7 +14,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Product catalog: prices stored in minor units for any ISO 4217 currency, including zero- and three-decimal currencies, with optional SKUs and a billing type.
 - Templates with a block editor: headings, text, lists, tables, page breaks, a pricing-table block, signature, date, text and checkbox fields assigned to roles, and `[Group.Name]` variables.
 - Pricing tables: sections, a catalog picker, custom columns with safe formulas, optional lines, choose-one sections, line and quote discounts, quote tax and live totals. The server recomputes every total.
-- Documents (proposal, quote, contract, invoice) created from a template for a client, numbered per type (`P-0001`, `Q-0001`, `C-0001`, `INV-0001`), with recipients in signing order, custom variable values, payment settings and a send-readiness checklist.
+- Documents (proposal, quote, contract, invoice) created from a template for a client, numbered per type (`P-0001`, `Q-0001`, `C-0001`, `INV-0001`), with recipients in signing order, custom variable values, payment settings and a send-readiness checklist. The documents list pages and searches by name or number.
+- Saving a document or template that someone else changed since you opened it is refused with a message to reload, instead of overwriting their work.
 - Navigation for Documents, Templates, Contacts and Catalog.
 
 ## [0.1.0] - 2026-10-13
