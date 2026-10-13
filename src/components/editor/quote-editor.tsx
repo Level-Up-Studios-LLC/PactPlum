@@ -201,21 +201,30 @@ function ItemRow({
   const setValue = (columnId: string, value: string | number) => onChange({ values: { ...item.values, [columnId]: value } });
   return (
     <div className={`space-y-2 rounded border p-3 ${line && !line.included ? "border-dashed border-neutral-300 bg-neutral-50" : "border-neutral-200"}`}>
-      <div className="grid grid-cols-[1fr_7rem_5rem_7rem_auto] items-center gap-2">
-        <input aria-label="Line name" value={item.name} disabled={!editable} onChange={(event) => onChange({ name: event.target.value })} className={cell} />
-        <MoneyInput
-          key={`${item.id}:${currency}:${item.productId ?? ""}`}
-          label="Unit price"
-          value={item.price}
-          currency={currency}
+      {/* Two columns on phones (name across the top), one row from sm: up. */}
+      <div className="grid grid-cols-2 items-center gap-2 sm:grid-cols-[minmax(0,1fr)_7rem_5rem_7rem_auto]">
+        <input
+          aria-label="Line name"
+          value={item.name}
           disabled={!editable}
-          onChange={(price) => onChange({ price })}
+          onChange={(event) => onChange({ name: event.target.value })}
+          className={`${cell} col-span-2 sm:col-span-1`}
         />
+        <div>
+          <MoneyInput
+            key={`${item.id}:${currency}:${item.productId ?? ""}`}
+            label="Unit price"
+            value={item.price}
+            currency={currency}
+            disabled={!editable}
+            onChange={(price) => onChange({ price })}
+          />
+        </div>
         <NumberInput label="Quantity" value={item.qty} disabled={!editable} onChange={(qty) => onChange({ qty })} />
         <span className="text-right text-sm font-medium" aria-label="Line amount">
           {line ? formatMoney(line.net, currency) : "—"}
         </span>
-        <span className="flex gap-1">
+        <span className="flex justify-self-end gap-1">
           <button type="button" aria-label="Move line up" className={smallButton} disabled={!editable || index === 0} onClick={() => onMove(-1)}>
             ↑
           </button>
@@ -383,7 +392,10 @@ function ColumnsEditor({ quote, editable, onChange }: { quote: Quote; editable: 
         />
       </label>
       {quote.columns.map((column, index) => (
-        <div key={rowKeys[index] ?? `row-${index}`} className="mt-2 grid grid-cols-[1fr_1fr_7rem_1fr_auto] items-center gap-2">
+        <div
+          key={rowKeys[index] ?? `row-${index}`}
+          className="mt-2 grid grid-cols-1 items-center gap-2 rounded border border-neutral-200 p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7rem_minmax(0,1fr)_auto] sm:rounded-none sm:border-0 sm:p-0"
+        >
           <ColumnIdInput quote={quote} id={column.id} disabled={!editable} onRename={(id) => onChange(renameColumn(quote, column.id, id))} />
           <input
             aria-label="Column label"
@@ -417,7 +429,7 @@ function ColumnsEditor({ quote, editable, onChange }: { quote: Quote; editable: 
           />
           <button
             type="button"
-            className={smallButton}
+            className={`${smallButton} justify-self-start sm:justify-self-auto`}
             disabled={!editable}
             onClick={() => {
               setRowKeys((keys) => keys.filter((_, i) => i !== index));
