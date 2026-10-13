@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: pactplum
       POSTGRES_DB: pactplum
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -18,8 +18,8 @@ services:
   mailpit:
     image: axllent/mailpit:v1.31.3
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
 
 volumes:
   pgdata: {}

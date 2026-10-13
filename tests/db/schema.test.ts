@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { members, organizations } from "@/db/schema";
+import { members, organizations, user } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { ensureOrganization } from "@/server/org/bootstrap";
 import { createTestDb, insertUser } from "../helpers/test-db";
@@ -23,6 +23,14 @@ describe("ensureOrganization", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].name).toBe("Acme");
     expect(rows[0].allowedSignupDomains).toEqual([]);
+  });
+});
+
+describe("user email constraints", () => {
+  it("rejects a user email that is not lowercase and trimmed", async () => {
+    await expect(
+      db.insert(user).values({ id: crypto.randomUUID(), name: "Jane", email: "Jane@Acme.com" }),
+    ).rejects.toThrow();
   });
 });
 

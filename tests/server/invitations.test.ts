@@ -67,6 +67,23 @@ describe("invitations", () => {
     expect(await findPendingInvitationByEmail(db, owner.organizationId, "jane@acme.com", now)).toBeNull();
   });
 
+  it("markInvitationAccepted claims an invitation only once", async () => {
+    const { invitationId } = await createInvitation(db, owner, { email: "jane@acme.com" }, now);
+    expect(await markInvitationAccepted(db, invitationId, now)).toBe(true);
+    expect(await markInvitationAccepted(db, invitationId, now)).toBe(false);
+  });
+
+  it("the database rejects a second pending invitation for the same email", async () => {
+    const base = {
+      organizationId: owner.organizationId,
+      email: "jane@acme.com",
+      invitedByUserId: owner.userId,
+      expiresAt: new Date(now.getTime() + day),
+    };
+    await db.insert(invitations).values({ ...base, tokenHash: "hash-one" });
+    await expect(db.insert(invitations).values({ ...base, tokenHash: "hash-two" })).rejects.toThrow();
+  });
+
   it("replaces an earlier pending invitation for the same email", async () => {
     const first = await createInvitation(db, owner, { email: "jane@acme.com" }, now);
     const second = await createInvitation(db, owner, { email: "jane@acme.com" }, now);

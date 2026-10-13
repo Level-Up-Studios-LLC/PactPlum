@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, pgEnum, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { check, pgEnum, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 
 export const memberRole = pgEnum("member_role", ["owner", "member"]);
@@ -63,5 +63,11 @@ export const invitations = pgTable(
     acceptedAt: timestamp("accepted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("invitations_org_email_idx").on(table.organizationId, table.email)],
+  (table) => [
+    // At most one live (unaccepted) invitation per address per organization.
+    uniqueIndex("invitations_pending_org_email_idx")
+      .on(table.organizationId, table.email)
+      .where(sql`accepted_at IS NULL`),
+    check("invitations_email_normalized", sql`${table.email} = lower(btrim(${table.email}))`),
+  ],
 );

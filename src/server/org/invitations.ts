@@ -52,31 +52,35 @@ export async function createInvitation(
     throw new ValidationError(`${email} is already a member.`);
   }
 
-  // A new invitation replaces any earlier pending one for the same address.
-  await db
-    .delete(invitations)
-    .where(
-      and(
-        eq(invitations.organizationId, ctx.organizationId),
-        eq(invitations.email, email),
-        isNull(invitations.acceptedAt),
-      ),
-    );
-
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(now.getTime() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1000);
-  const [row] = await db
-    .insert(invitations)
-    .values({
-      organizationId: ctx.organizationId,
-      email,
-      tokenHash: hashToken(token),
-      invitedByUserId: ctx.userId,
-      expiresAt,
-    })
-    .returning({ id: invitations.id });
 
-  return { invitationId: row.id, token, email, expiresAt };
+  // A new invitation replaces any earlier pending one for the same address.
+  // The delete and insert share a transaction so a failed insert keeps the old invite.
+  const invitationId = await db.transaction(async (tx) => {
+    await tx
+      .delete(invitations)
+      .where(
+        and(
+          eq(invitations.organizationId, ctx.organizationId),
+          eq(invitations.email, email),
+          isNull(invitations.acceptedAt),
+        ),
+      );
+    const [row] = await tx
+      .insert(invitations)
+      .values({
+        organizationId: ctx.organizationId,
+        email,
+        tokenHash: hashToken(token),
+        invitedByUserId: ctx.userId,
+        expiresAt,
+      })
+      .returning({ id: invitations.id });
+    return row.id;
+  });
+
+  return { invitationId, token, email, expiresAt };
 }
 
 export async function findInvitationByToken(
@@ -119,10 +123,16 @@ export async function findPendingInvitationByEmail(
   return row ?? null;
 }
 
+// Returns true only for the call that claimed the invitation; later calls return false.
 export async function markInvitationAccepted(
   db: Db,
   invitationId: string,
   now: Date = new Date(),
-): Promise<void> {
-  await db.update(invitations).set({ acceptedAt: now }).where(eq(invitations.id, invitationId));
+): Promise<boolean> {
+  const rows = await db
+    .update(invitations)
+    .set({ acceptedAt: now })
+    .where(and(eq(invitations.id, invitationId), isNull(invitations.acceptedAt)))
+    .returning({ id: invitations.id });
+  return rows.length > 0;
 }
