@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "PactPlum",
-  description: "Open-source proposals, quotes, contracts and invoices.",
+  description: "Open-source proposals, quotes, contracts and invoices with e-signatures.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
