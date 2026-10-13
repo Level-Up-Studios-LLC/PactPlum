@@ -20,23 +20,25 @@ function productInput(formData: FormData) {
 
 export async function createProductAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const { ctx } = await requireMember();
+  const input = productInput(formData);
   try {
-    await createProduct(db, ctx, productInput(formData));
+    await createProduct(db, ctx, input);
     revalidatePath("/app/catalog");
     return { ok: true, message: "Product added." };
   } catch (error) {
-    return actionError("catalog", error);
+    return actionError("catalog", error, input);
   }
 }
 
 export async function updateProductAction(id: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   const { ctx } = await requireMember();
+  const input = productInput(formData);
   try {
-    await updateProduct(db, ctx, id, productInput(formData));
+    await updateProduct(db, ctx, id, input);
     revalidatePath("/app/catalog");
     return { ok: true, message: "Product saved." };
   } catch (error) {
-    return actionError("catalog", error);
+    return actionError("catalog", error, input);
   }
 }
 

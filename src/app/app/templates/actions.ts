@@ -5,19 +5,20 @@ import { redirect } from "next/navigation";
 import { db } from "@/db/client";
 import { requireMember } from "@/server/auth/session";
 import { createTemplate, deleteTemplate, duplicateTemplate, updateTemplate } from "@/server/templates/templates";
-import { type ActionState, actionError } from "../action-state";
+import { type ActionState, actionError, formValues } from "../action-state";
 
 export async function createTemplateAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const { ctx } = await requireMember();
+  const values = formValues(formData, ["name", "documentType"]);
   let id: string;
   try {
     const template = await createTemplate(db, ctx, {
-      name: String(formData.get("name") ?? ""),
-      documentType: String(formData.get("documentType") ?? "proposal"),
+      name: values.name,
+      documentType: values.documentType || "proposal",
     });
     id = template.id;
   } catch (error) {
-    return actionError("templates", error);
+    return actionError("templates", error, values);
   }
   revalidatePath("/app/templates");
   redirect(`/app/templates/${id}`);

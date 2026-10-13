@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
+import { formKey } from "../../action-state";
 import { buttonClass, FormStatus, inputClass } from "../../ui";
 import { addRecipientAction, moveRecipientAction, removeRecipientAction } from "../actions";
 
@@ -77,10 +78,10 @@ export function RecipientsPanel({
             to choose recipients.
           </p>
         ) : (
-          <form action={formAction} className="flex flex-wrap items-end gap-2">
+          <form key={formKey(state)} action={formAction} className="flex flex-wrap items-end gap-2">
             <label className="block text-sm">
               Contact
-              <select name="contactId" required className={inputClass}>
+              <select name="contactId" required defaultValue={state?.values?.contactId} className={inputClass}>
                 {contacts.map((contact) => (
                   <option key={contact.id} value={contact.id}>
                     {contact.name} ({contact.email})
@@ -98,7 +99,7 @@ export function RecipientsPanel({
             {kind === "signer" && (
               <label className="block text-sm">
                 Role
-                <select name="role" className={inputClass}>
+                <select name="role" defaultValue={state?.values?.role} className={inputClass}>
                   {roles.map((role) => (
                     <option key={role} value={role}>
                       {role}

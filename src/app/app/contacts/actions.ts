@@ -19,23 +19,25 @@ function contactInput(formData: FormData) {
 
 export async function createContactAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const { ctx } = await requireMember();
+  const input = contactInput(formData);
   try {
-    await createContact(db, ctx, contactInput(formData));
+    await createContact(db, ctx, input);
     revalidatePath("/app/contacts");
     return { ok: true, message: "Contact added." };
   } catch (error) {
-    return actionError("contacts", error);
+    return actionError("contacts", error, input);
   }
 }
 
 export async function updateContactAction(id: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   const { ctx } = await requireMember();
+  const input = contactInput(formData);
   try {
-    await updateContact(db, ctx, id, contactInput(formData));
+    await updateContact(db, ctx, id, input);
     revalidatePath("/app/contacts");
     return { ok: true, message: "Contact saved." };
   } catch (error) {
-    return actionError("contacts", error);
+    return actionError("contacts", error, input);
   }
 }
 

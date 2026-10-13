@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import type { ActionState } from "../action-state";
+import { type ActionState, formKey } from "../action-state";
 import { buttonClass, FormStatus, inputClass } from "../ui";
 
 export type ProductFields = {
@@ -28,27 +28,27 @@ export function ProductForm({
 }) {
   const [state, formAction, pending] = useActionState(action, null);
   return (
-    <form action={formAction} className="space-y-3">
+    <form key={formKey(state)} action={formAction} className="space-y-3">
       <label className="block text-sm">
         Title
-        <input name="title" required defaultValue={product?.title} className={inputClass} />
+        <input name="title" required defaultValue={state?.values?.title ?? product?.title} className={inputClass} />
       </label>
       <label className="block text-sm">
         SKU (optional)
-        <input name="sku" defaultValue={product?.sku ?? ""} className={inputClass} />
+        <input name="sku" defaultValue={state?.values?.sku ?? product?.sku ?? ""} className={inputClass} />
       </label>
       <label className="block text-sm">
         Description
-        <textarea name="description" rows={3} defaultValue={product?.description ?? ""} className={inputClass} />
+        <textarea name="description" rows={3} defaultValue={state?.values?.description ?? product?.description ?? ""} className={inputClass} />
       </label>
       <div className="grid grid-cols-3 gap-3">
         <label className="block text-sm">
           Price
-          <input name="price" inputMode="decimal" required defaultValue={product?.price ?? ""} placeholder="1250.00" className={inputClass} />
+          <input name="price" inputMode="decimal" required defaultValue={state?.values?.price ?? product?.price ?? ""} placeholder="1250.00" className={inputClass} />
         </label>
         <label className="block text-sm">
           Currency
-          <select name="currency" defaultValue={product?.currency ?? defaultCurrency} className={inputClass}>
+          <select name="currency" defaultValue={state?.values?.currency ?? product?.currency ?? defaultCurrency} className={inputClass}>
             {currencies.map((code) => (
               <option key={code} value={code}>
                 {code}
@@ -58,7 +58,7 @@ export function ProductForm({
         </label>
         <label className="block text-sm">
           Billing
-          <select name="billingType" defaultValue={product?.billingType ?? "one_time"} className={inputClass}>
+          <select name="billingType" defaultValue={state?.values?.billingType ?? product?.billingType ?? "one_time"} className={inputClass}>
             <option value="one_time">One-time</option>
             <option value="monthly">Monthly</option>
             <option value="yearly">Yearly</option>
