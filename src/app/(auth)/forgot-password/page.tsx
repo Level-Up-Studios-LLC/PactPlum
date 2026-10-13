@@ -22,8 +22,11 @@ export default function ForgotPasswordPage() {
         <p className="text-sm">If an account exists for that email, a reset link is on its way.</p>
       ) : (
         <form onSubmit={onSubmit} className="space-y-3">
-          <input name="email" type="email" required placeholder="Email"
-            className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm" />
+          <div className="space-y-1">
+            <label htmlFor="forgot-password-email" className="block text-sm font-medium">Email</label>
+            <input id="forgot-password-email" name="email" type="email" required placeholder="Email"
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm" />
+          </div>
           <button type="submit" className="w-full rounded-md bg-[#6b2d5c] px-3 py-2 text-sm font-medium text-white">
             Send reset link
           </button>

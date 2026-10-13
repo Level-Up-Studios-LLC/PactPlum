@@ -25,8 +25,11 @@ function ResetForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-3">
-      <input name="password" type="password" required minLength={8} placeholder="New password (8+ characters)"
-        className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm" />
+      <div className="space-y-1">
+        <label htmlFor="reset-password-new" className="block text-sm font-medium">New password</label>
+        <input id="reset-password-new" name="password" type="password" required minLength={8} placeholder="New password (8+ characters)"
+          className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm" />
+      </div>
       <button type="submit" className="w-full rounded-md bg-[#6b2d5c] px-3 py-2 text-sm font-medium text-white">
         Save new password
       </button>

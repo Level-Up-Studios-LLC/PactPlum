@@ -29,10 +29,16 @@ export function SignInForm({ initialError }: { initialError?: string }) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-3">
-      <input name="email" type="email" required autoComplete="email" placeholder="Email"
-        className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm" />
-      <input name="password" type="password" required autoComplete="current-password" placeholder="Password"
-        className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm" />
+      <div className="space-y-1">
+        <label htmlFor="sign-in-email" className="block text-sm font-medium">Email</label>
+        <input id="sign-in-email" name="email" type="email" required autoComplete="email" placeholder="Email"
+          className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm" />
+      </div>
+      <div className="space-y-1">
+        <label htmlFor="sign-in-password" className="block text-sm font-medium">Password</label>
+        <input id="sign-in-password" name="password" type="password" required autoComplete="current-password" placeholder="Password"
+          className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm" />
+      </div>
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       <button type="submit" disabled={pending}
         className="w-full rounded-md bg-[#6b2d5c] px-3 py-2 text-sm font-medium text-white disabled:opacity-60">
