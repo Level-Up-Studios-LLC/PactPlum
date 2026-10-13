@@ -1,15 +1,13 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth";
-import { APIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
+import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import * as schema from "@/db/schema";
 import { enabledSocialProviders, getEnv, requiresEmailVerification } from "@/lib/env";
 import { createMailerFromEnv } from "@/server/mail/mailer";
 import { resetPasswordEmail, verificationEmail } from "@/server/mail/templates";
-import { normalizeEmail } from "@/server/org/invitations";
-import { applySignUp, resolveSignUp } from "./signup-hooks";
-import { SIGN_UP_MESSAGES } from "./signup-policy";
+import { admitUser, beforeUserCreate } from "./signup-hooks";
 
 const env = getEnv();
 const mailer = createMailerFromEnv(env);
@@ -46,20 +44,33 @@ export const auth = betterAuth({
     },
   },
   socialProviders: enabledSocialProviders(env),
-  // Throttles sign-in, sign-up and reset attempts per IP.
+  // Enables Better Auth's built-in rate limiter.
   rateLimit: { enabled: true, window: 60, max: 30 },
   databaseHooks: {
     user: {
       create: {
-        before: async (user) => {
-          const decision = await resolveSignUp(db, user.email);
-          if (!decision.allowed) {
-            throw new APIError("FORBIDDEN", { message: SIGN_UP_MESSAGES[decision.reason] });
-          }
-          return { data: { ...user, email: normalizeEmail(user.email) } };
-        },
+        before: async (user) => ({ data: { ...user, ...(await beforeUserCreate(db, user)) } }),
         after: async (user) => {
-          await applySignUp(db, user.id, user.email);
+          await admitUser(db, user);
+        },
+      },
+      update: {
+        // Fires when email verification flips emailVerified.
+        after: async (user) => {
+          await admitUser(db, user);
+        },
+      },
+    },
+    session: {
+      create: {
+        // Covers social sign-in and users who were invited after their account existed.
+        after: async (session) => {
+          const [row] = await db
+            .select({ id: schema.user.id, email: schema.user.email, emailVerified: schema.user.emailVerified })
+            .from(schema.user)
+            .where(eq(schema.user.id, session.userId))
+            .limit(1);
+          if (row) await admitUser(db, row);
         },
       },
     },
