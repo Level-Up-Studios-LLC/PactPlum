@@ -57,6 +57,10 @@ describe("quote schema", () => {
     ).toBe('Column id "hours" is used twice.');
   });
 
+  it.each(["__proto__", "constructor", "prototype"])("rejects the object-prototype column id %s", (id) => {
+    expect(errorOf(quote({ columns: [{ id, label: "Odd", type: "number" }] }))).toBe(`Column id "${id}" is reserved.`);
+  });
+
   it("rejects formulas on text columns and references to later or text columns", () => {
     expect(errorOf(quote({ columns: [{ id: "note", label: "Note", type: "text", formula: "price" }] }))).toBe(
       'Text column "Note" cannot have a formula.',

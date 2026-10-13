@@ -5,6 +5,8 @@ import { FormulaError, formulaRefs, parseFormula } from "./formula";
 
 export const DEFAULT_AMOUNT_FORMULA = "price * qty";
 export const RESERVED_FIELDS = ["price", "qty"] as const;
+// Names that would collide with object internals when line values are read by column id.
+const RESERVED_COLUMN_IDS: readonly string[] = [...RESERVED_FIELDS, "__proto__", "constructor", "prototype"];
 export const QUOTE_LIMITS = { sections: 50, items: 500, columns: 10 } as const;
 
 const minorAmount = z.number().int().min(0).max(MAX_MINOR_AMOUNT);
@@ -58,7 +60,7 @@ export const QuoteSchema = z
     const numeric = new Set<string>(RESERVED_FIELDS);
     const seenColumns = new Set<string>();
     for (const column of quote.columns) {
-      if ((RESERVED_FIELDS as readonly string[]).includes(column.id)) return fail(`Column id "${column.id}" is reserved.`);
+      if (RESERVED_COLUMN_IDS.includes(column.id)) return fail(`Column id "${column.id}" is reserved.`);
       if (seenColumns.has(column.id)) return fail(`Column id "${column.id}" is used twice.`);
       seenColumns.add(column.id);
       if (column.formula !== null) {
