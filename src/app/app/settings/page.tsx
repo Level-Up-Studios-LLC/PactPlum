@@ -16,7 +16,19 @@ export default async function SettingsPage() {
         {isOwner ? (
           <SettingsForm settings={settings} />
         ) : (
-          <p className="text-sm text-neutral-600">Only the owner can change organization settings.</p>
+          <>
+            <dl className="mb-3 grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
+              <dt className="text-neutral-500">Organization name</dt>
+              <dd>{settings.name}</dd>
+              <dt className="text-neutral-500">Email sender name</dt>
+              <dd>{settings.senderName ?? settings.name}</dd>
+              <dt className="text-neutral-500">Reply-to email</dt>
+              <dd>{settings.replyToEmail ?? "Not set"}</dd>
+              <dt className="text-neutral-500">Allowed sign-up domains</dt>
+              <dd>{settings.allowedSignupDomains.length > 0 ? settings.allowedSignupDomains.join(", ") : "None"}</dd>
+            </dl>
+            <p className="text-sm text-neutral-600">Only the owner can change organization settings.</p>
+          </>
         )}
       </section>
 
