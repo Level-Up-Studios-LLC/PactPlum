@@ -55,22 +55,84 @@ export function countQuoteBlocks(content: DocContent): number {
   return count;
 }
 
+// Bold or italic in the middle of a token splits it across sibling text nodes, so variables are matched on
+// each maximal run of adjacent text nodes rather than on one node at a time.
+function textRuns(children: DocContent[]): DocContent[][] {
+  const runs: DocContent[][] = [];
+  let run: DocContent[] = [];
+  for (const child of children) {
+    if (child.type === "text") {
+      run.push(child);
+    } else if (run.length) {
+      runs.push(run);
+      run = [];
+    }
+  }
+  if (run.length) runs.push(run);
+  return runs;
+}
+
+const runText = (run: DocContent[]) => run.map((node) => node.text ?? "").join("");
+
 export function extractVariables(content: DocContent): string[] {
   const names = new Set<string>();
   walk(content, (node) => {
-    if (node.type !== "text" || !node.text) return;
-    for (const match of node.text.matchAll(VARIABLE_PATTERN)) names.add(match[1]);
+    for (const run of textRuns(node.content ?? [])) {
+      for (const match of runText(run).matchAll(VARIABLE_PATTERN)) names.add(match[1]);
+    }
   });
   return [...names];
+}
+
+// Replaces the tokens that have a value. The replacement keeps the marks of the node where the token starts,
+// the rest of the token is removed from the nodes after it, and nodes left empty are dropped.
+function resolveRun(run: DocContent[], values: Record<string, string>): DocContent[] {
+  const joined = runText(run);
+  const edits: { start: number; end: number; value: string }[] = [];
+  for (const match of joined.matchAll(VARIABLE_PATTERN)) {
+    if (Object.hasOwn(values, match[1])) edits.push({ start: match.index, end: match.index + match[0].length, value: values[match[1]] });
+  }
+  if (!edits.length) return run;
+  let offset = 0;
+  const resolved: DocContent[] = [];
+  for (const node of run) {
+    const from = offset;
+    const to = from + (node.text ?? "").length;
+    offset = to;
+    let text = "";
+    let position = from;
+    for (const edit of edits) {
+      if (edit.end <= from || edit.start >= to) continue;
+      text += joined.slice(position, Math.max(edit.start, from));
+      position = Math.min(edit.end, to);
+      if (edit.start >= from) text += edit.value;
+    }
+    text += joined.slice(position, to);
+    if (text) resolved.push({ ...node, text });
+  }
+  return resolved;
 }
 
 export function resolveVariables(content: DocContent, values: Record<string, string>): DocContent {
   const copy = structuredClone(content);
   walk(copy, (node) => {
-    if (node.type !== "text" || !node.text) return;
-    node.text = node.text.replace(VARIABLE_PATTERN, (token, name: string) =>
-      Object.hasOwn(values, name) ? values[name] : token,
-    );
+    if (!node.content) return;
+    const children: DocContent[] = [];
+    let run: DocContent[] = [];
+    const flush = () => {
+      children.push(...resolveRun(run, values));
+      run = [];
+    };
+    for (const child of node.content) {
+      if (child.type === "text") {
+        run.push(child);
+      } else {
+        flush();
+        children.push(child);
+      }
+    }
+    flush();
+    node.content = children;
   });
   return copy;
 }

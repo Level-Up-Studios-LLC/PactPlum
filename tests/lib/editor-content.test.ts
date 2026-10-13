@@ -119,3 +119,55 @@ describe("content helpers", () => {
     expect(content.content?.[1]).toEqual(p(text("Hello [Client.Name], from [Sender.Name] for [Client.Name] and [Deal.Value].")));
   });
 });
+
+describe("variables split across formatted text", () => {
+  const bold: JSONContent["marks"] = [{ type: "bold" }];
+  const italic: JSONContent["marks"] = [{ type: "italic" }];
+  const marked = (value: string, marks: JSONContent["marks"]): JSONContent => ({ type: "text", text: value, marks });
+
+  it("extracts a token split across a bold and a plain node", () => {
+    expect(extractVariables(doc(p(text("Total [Deal."), marked("Value]", bold))))).toEqual(["Deal.Value"]);
+  });
+
+  it("resolves a split token with the marks of the node where it starts", () => {
+    const content = doc(p(marked("[Deal.", bold), text("Value] due")));
+    expect(resolveVariables(content, { "Deal.Value": "$5,000" })).toEqual(doc(p(marked("$5,000", bold), text(" due"))));
+  });
+
+  it("resolves a token split across three nodes", () => {
+    const content = doc(p(text("[Client"), marked(".", bold), marked("Name]", italic)));
+    expect(extractVariables(content)).toEqual(["Client.Name"]);
+    expect(resolveVariables(content, { "Client.Name": "Jane" })).toEqual(doc(p(text("Jane"))));
+  });
+
+  it("keeps the text around a split token in its own marks", () => {
+    const content = doc(p(marked("Dear ", italic), marked("[Client.", bold), text("Name], hi")));
+    expect(resolveVariables(content, { "Client.Name": "Jane" })).toEqual(
+      doc(p(marked("Dear ", italic), marked("Jane", bold), text(", hi"))),
+    );
+  });
+
+  it("resolves several tokens in one run, split or whole", () => {
+    const content = doc(p(text("[A.B] and [C."), marked("D] and [A.B]", bold)));
+    expect(resolveVariables(content, { "A.B": "x", "C.D": "y" })).toEqual(doc(p(text("x and y"), marked(" and x", bold))));
+  });
+
+  it("leaves an unresolved split token as it was", () => {
+    const content = doc(p(text("Total [Deal."), marked("Value]", bold)));
+    expect(resolveVariables(content, {})).toEqual(content);
+    expect(resolveVariables(content, { "Client.Name": "Jane" })).toEqual(content);
+  });
+
+  it("does not join text across a node that is not text", () => {
+    const content = doc(p(text("[Deal."), field(), text("Value]")));
+    expect(extractVariables(content)).toEqual([]);
+    expect(resolveVariables(content, { "Deal.Value": "x" })).toEqual(content);
+  });
+
+  it("does not mutate its input", () => {
+    const content = doc(p(marked("[Deal.", bold), text("Value]")));
+    const snapshot = structuredClone(content);
+    resolveVariables(content, { "Deal.Value": "x" });
+    expect(content).toEqual(snapshot);
+  });
+});
