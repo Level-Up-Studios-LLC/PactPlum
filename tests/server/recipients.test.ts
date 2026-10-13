@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { documents } from "@/db/schema";
 import type { Db } from "@/db/types";
 import { createContact } from "@/server/contacts/contacts";
@@ -95,6 +95,49 @@ describe("recipients", () => {
     const added = await addRecipient(db, a, documentId, { contactId: jane, role: "Client" });
     await expect(removeRecipient(db, b, documentId, added.id)).rejects.toThrow(NotFoundError);
     await expect(removeRecipient(db, a, documentId, "missing")).rejects.toThrow(new NotFoundError("Recipient not found."));
+  });
+
+  it("runs each recipient edit and each document save in one transaction", async () => {
+    const transaction = vi.spyOn(db, "transaction");
+    const added = await addRecipient(db, a, documentId, { contactId: jane, role: "Client" });
+    expect(transaction).toHaveBeenCalledTimes(1);
+    await addRecipient(db, a, documentId, { contactId: sam, role: "Agency" });
+    transaction.mockClear();
+    await moveRecipient(db, a, documentId, added.id, "down");
+    expect(transaction).toHaveBeenCalledTimes(1);
+    transaction.mockClear();
+    await removeRecipient(db, a, documentId, added.id);
+    expect(transaction).toHaveBeenCalledTimes(1);
+    transaction.mockClear();
+    await updateDocument(db, a, documentId, { version: 2, name: "Renamed" });
+    expect(transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("numbers recipients added at the same time one after the other", async () => {
+    await Promise.all([
+      addRecipient(db, a, documentId, { contactId: jane, role: "Client" }),
+      addRecipient(db, a, documentId, { contactId: sam, role: "Agency" }),
+      addRecipient(db, a, documentId, { contactId: pat, kind: "cc" }),
+    ]);
+    expect((await summary()).map(([, , , order]) => order)).toEqual([1, 2, 3]);
+  });
+
+  it("never leaves a signer whose role was removed from the document", async () => {
+    await Promise.allSettled([
+      addRecipient(db, a, documentId, { contactId: sam, role: "Agency" }),
+      updateDocument(db, a, documentId, { version: 2, roles: ["Client"] }),
+    ]);
+    const stored = await getDocument(db, a, documentId);
+    for (const recipient of stored.recipients) {
+      if (recipient.role !== null) expect(stored.roles).toContain(recipient.role);
+    }
+  });
+
+  it("does not change the document version when recipients change", async () => {
+    const added = await addRecipient(db, a, documentId, { contactId: jane, role: "Client" });
+    await moveRecipient(db, a, documentId, added.id, "down");
+    await removeRecipient(db, a, documentId, added.id);
+    expect((await getDocument(db, a, documentId)).version).toBe(2);
   });
 
   it("reports readiness from the stored document", async () => {
