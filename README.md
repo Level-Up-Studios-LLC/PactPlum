@@ -12,7 +12,9 @@ Open-source proposals, quotes, contracts and invoices with e-signatures and Stri
 4. Start everything: `docker compose --profile app up --build -d`.
 5. Open the URL. The first account you create becomes the **owner**. Everyone else needs an invitation or an allowed email domain (Settings → Allowed sign-up domains).
 
-Local development emails go to Mailpit at http://localhost:8025.
+`docker compose --profile app up` starts PactPlum together with Postgres and Mailpit; plain `docker compose up` starts only Postgres and Mailpit for development. The `.env` file must exist before you start the app service.
+
+By default the Docker setup sends all email to Mailpit (http://localhost:8025), even if you set SMTP values in `.env`, because `compose.yaml` overrides `SMTP_HOST` and `SMTP_PORT` for the `app` service. To send real email, delete those two lines from the `app` service's `environment:` block in `compose.yaml` and set your provider's values in `.env`.
 
 ## Run for development
 
