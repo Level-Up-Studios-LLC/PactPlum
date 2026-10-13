@@ -23,12 +23,14 @@ export function formatMoney(minor: number, currency: string, locale = "en-US"): 
  * or amounts above MAX_MINOR_AMOUNT.
  */
 export function parseMoney(input: string, currency: string): number | null {
-  const match = /^(\d+)(?:\.(\d+))?$/.exec(input.trim().replace(/,/g, ""));
+  // Commas are accepted only as thousands separators: "1,250.50" yes, "12,5" no.
+  const match = /^(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?$/.exec(input.trim());
   if (!match) return null;
   const exponent = currencyExponent(currency);
   const fraction = match[2] ?? "";
   if (fraction.length > exponent) return null;
-  const minor = Number(match[1]) * 10 ** exponent + Number(fraction.padEnd(exponent, "0") || "0");
+  const whole = Number(match[1].replace(/,/g, ""));
+  const minor = whole * 10 ** exponent + Number(fraction.padEnd(exponent, "0") || "0");
   return Number.isSafeInteger(minor) && minor <= MAX_MINOR_AMOUNT ? minor : null;
 }
 

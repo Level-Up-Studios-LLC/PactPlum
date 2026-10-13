@@ -29,6 +29,13 @@ describe("money", () => {
     expect(parseMoney("0.07", "USD")).toBe(7);
     expect(parseMoney("1250", "JPY")).toBe(1250);
     expect(parseMoney("1.234", "BHD")).toBe(1234);
+    expect(parseMoney("1,250,000.00", "USD")).toBe(125000000);
+  });
+
+  it("accepts commas only as thousands separators", () => {
+    expect(parseMoney("12,5", "USD")).toBeNull();
+    expect(parseMoney("1,2,3", "USD")).toBeNull();
+    expect(parseMoney(",100", "USD")).toBeNull();
   });
 
   it("rejects malformed, negative, over-precise and oversized input", () => {
