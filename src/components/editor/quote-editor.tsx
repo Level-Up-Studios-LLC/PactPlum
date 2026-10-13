@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { newId } from "@/lib/ids";
 import { formatMoney, minorToDecimalString, parseMoney } from "@/lib/money";
 import {
@@ -12,6 +12,7 @@ import {
   type QuoteItem,
   type QuoteSection,
 } from "@/lib/quote/schema";
+import { columnIdProblem, nextColumnId, removeColumn, renameColumn } from "@/lib/quote/columns";
 import { changeQuoteCurrency } from "@/lib/quote/currency";
 import { computeQuote,type LineTotal, type QuoteTotals } from "@/lib/quote/totals";
 
@@ -315,11 +316,48 @@ function ItemRow({
   );
 }
 
-function nextColumnId(columns: QuoteColumn[]): string {
-  const used = new Set(columns.map((column) => column.id));
-  let number = 1;
-  while (used.has(`col_${number}`)) number++;
-  return `col_${number}`;
+// The id is renamed on blur or Enter, never per keystroke: renaming moves saved line values and formula references,
+// and intermediate states (renaming "ab" to "a" while a column "a" exists) must not merge them.
+function ColumnIdInput({ quote, id, disabled, onRename }: { quote: Quote; id: string; disabled: boolean; onRename: (id: string) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const problemId = useId();
+  function commit() {
+    if (draft === null) return;
+    const next = draft.trim();
+    const issue = columnIdProblem(quote, id, next);
+    setDraft(null);
+    setProblem(issue);
+    if (!issue && next !== id) onRename(next);
+  }
+  return (
+    <div>
+      <input
+        aria-label="Column id"
+        aria-invalid={problem !== null}
+        aria-describedby={problem ? problemId : undefined}
+        value={draft ?? id}
+        disabled={disabled}
+        onChange={(event) => {
+          setDraft(event.target.value.toLowerCase());
+          setProblem(null);
+        }}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            commit();
+          }
+        }}
+        className={`${cell} ${problem ? "border-red-500" : ""}`}
+      />
+      {problem && (
+        <span id={problemId} role="status" className="block text-xs text-red-600">
+          {problem}
+        </span>
+      )}
+    </div>
+  );
 }
 
 function ColumnsEditor({ quote, editable, onChange }: { quote: Quote; editable: boolean; onChange: (patch: Partial<Quote>) => void }) {
@@ -346,13 +384,7 @@ function ColumnsEditor({ quote, editable, onChange }: { quote: Quote; editable: 
       </label>
       {quote.columns.map((column, index) => (
         <div key={rowKeys[index] ?? `row-${index}`} className="mt-2 grid grid-cols-[1fr_1fr_7rem_1fr_auto] items-center gap-2">
-          <input
-            aria-label="Column id"
-            value={column.id}
-            disabled={!editable}
-            onChange={(event) => updateColumn(index, { id: event.target.value.toLowerCase() })}
-            className={cell}
-          />
+          <ColumnIdInput quote={quote} id={column.id} disabled={!editable} onRename={(id) => onChange(renameColumn(quote, column.id, id))} />
           <input
             aria-label="Column label"
             value={column.label}
@@ -389,7 +421,7 @@ function ColumnsEditor({ quote, editable, onChange }: { quote: Quote; editable: 
             disabled={!editable}
             onClick={() => {
               setRowKeys((keys) => keys.filter((_, i) => i !== index));
-              onChange({ columns: quote.columns.filter((_, i) => i !== index) });
+              onChange(removeColumn(quote, column.id));
             }}
           >
             Remove

@@ -6,7 +6,7 @@ import { FormulaError, formulaRefs, parseFormula } from "./formula";
 export const DEFAULT_AMOUNT_FORMULA = "price * qty";
 export const RESERVED_FIELDS = ["price", "qty"] as const;
 // Names that would collide with object internals when line values are read by column id.
-const RESERVED_COLUMN_IDS: readonly string[] = [...RESERVED_FIELDS, "__proto__", "constructor", "prototype"];
+export const RESERVED_COLUMN_IDS:readonly string[] = [...RESERVED_FIELDS, "__proto__", "constructor", "prototype"];
 export const QUOTE_LIMITS = { sections: 50, items: 500, columns: 10 } as const;
 
 const minorAmount = z.number().int().min(0).max(MAX_MINOR_AMOUNT);
