@@ -25,3 +25,10 @@ jobs:
           DATABASE_URL: postgres://build:build@localhost:5432/build
           BETTER_AUTH_SECRET: ci-build-placeholder-secret-0123456789abcdef
           BETTER_AUTH_URL: http://localhost:3000
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t pactplum:ci .
