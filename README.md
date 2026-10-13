@@ -4,6 +4,8 @@ Open-source proposals, quotes, contracts and invoices with e-signatures and Stri
 
 > Status: early development. Not ready for production use.
 
+What works today (0.2.0): invite-only sign-in, organization settings and SMTP email; contacts; a product catalog; templates built in a block editor with pricing tables, fields and variables; and draft documents created from templates with recipients and a send-readiness checklist. Sending, e-signing, PDFs and payments arrive in the next releases.
+
 ## Run with Docker
 
 1. Copy the environment file: `cp .env.example .env`.

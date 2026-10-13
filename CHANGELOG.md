@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-13
+
+### Added
+
+- Contacts: add, search, edit and delete clients. Email addresses are unique within an organization.
+- Product catalog: prices stored in minor units for any ISO 4217 currency, including zero- and three-decimal currencies, with optional SKUs and a billing type.
+- Templates with a block editor: headings, text, lists, tables, page breaks, a pricing-table block, signature, date, text and checkbox fields assigned to roles, and `[Group.Name]` variables.
+- Pricing tables: sections, a catalog picker, custom columns with safe formulas, optional lines, choose-one sections, line and quote discounts, quote tax and live totals. The server recomputes every total.
+- Documents (proposal, quote, contract, invoice) created from a template for a client, numbered per type (`P-0001`, `Q-0001`, `C-0001`, `INV-0001`), with recipients in signing order, custom variable values, payment settings and a send-readiness checklist.
+- Navigation for Documents, Templates, Contacts and Catalog.
+
 ## [0.1.0] - 2026-10-13
 
 ### Added
@@ -24,5 +35,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - GitHub Actions CI: lint, type check, tests, build and Docker image build.
 - MIT license, contributing guide and security policy.
 
-[Unreleased]: https://github.com/Level-Up-Studios-LLC/PactPlum/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Level-Up-Studios-LLC/PactPlum/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Level-Up-Studios-LLC/PactPlum/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Level-Up-Studios-LLC/PactPlum/releases/tag/v0.1.0
