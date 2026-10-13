@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { db } from "@/db/client";
 import { requireMember } from "@/server/auth/session";
+import { listProducts } from "@/server/catalog/products";
+import { getOrganizationSettings } from "@/server/org/settings";
 import { getTemplate } from "@/server/templates/templates";
 import { ConfirmButton } from "../../confirm-button";
 import { loadOrNotFound } from "../../load";
@@ -12,6 +14,7 @@ export default async function TemplatePage({ params }: { params: Promise<{ id: s
   const { ctx } = await requireMember();
   const { id } = await params;
   const template = await loadOrNotFound(getTemplate(db, ctx, id));
+  const [products, org] = await Promise.all([listProducts(db, ctx), getOrganizationSettings(db, ctx)]);
 
   return (
     <div className="space-y-6">
@@ -30,6 +33,16 @@ export default async function TemplatePage({ params }: { params: Promise<{ id: s
           paymentMode: template.paymentMode,
           paymentPercent: template.paymentPercent,
         }}
+        products={products.map(({ id, title, description, unitPrice, currency, sku }) => ({
+          id,
+          title,
+          description,
+          unitPrice,
+          currency,
+          sku,
+        }))}
+        currencies={Intl.supportedValuesOf("currency")}
+        defaultCurrency={org.defaultCurrency}
       />
       <div className="flex gap-3 border-t border-neutral-200 pt-6">
         <form action={duplicateTemplateAction.bind(null, template.id)}>

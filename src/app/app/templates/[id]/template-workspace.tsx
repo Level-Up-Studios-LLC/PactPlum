@@ -2,6 +2,7 @@
 
 import type { JSONContent } from "@tiptap/react";
 import { useState, useTransition } from "react";
+import { type CatalogOption, QuoteEditor } from "@/components/editor/quote-editor";
 import { RichEditor } from "@/components/editor/rich-editor";
 import {
   DOCUMENT_TYPE_LABELS,
@@ -11,10 +12,11 @@ import {
   PAYMENT_MODES,
   type PaymentMode,
 } from "@/lib/documents";
-import type { Quote } from "@/lib/quote/schema";
+import { countQuoteBlocks } from "@/lib/editor/content";
+import { emptyQuote, type Quote } from "@/lib/quote/schema";
 import { parseRoleList } from "@/lib/roles";
 import type { ActionState } from "../../action-state";
-import { buttonClass, FormStatus, inputClass } from "../../ui";
+import { buttonClass, FormStatus, inputClass, secondaryButtonClass } from "../../ui";
 import { saveTemplateAction } from "../actions";
 
 export type TemplateData = {
@@ -28,12 +30,22 @@ export type TemplateData = {
   paymentPercent: number | null;
 };
 
-export function TemplateWorkspace({ template }: { template: TemplateData }) {
+export function TemplateWorkspace({
+  template,
+  products,
+  currencies,
+  defaultCurrency,
+}: {
+  template: TemplateData;
+  products: CatalogOption[];
+  currencies: string[];
+  defaultCurrency: string;
+}) {
   const [name, setName] = useState(template.name);
   const [documentType, setDocumentType] = useState<DocumentType>(template.documentType);
   const [rolesText, setRolesText] = useState(template.roles.join(", "));
   const [content, setContent] = useState<JSONContent>(template.content);
-  const [quote] = useState<Quote | null>(template.quote);
+  const [quote, setQuote] = useState<Quote | null>(template.quote);
   const [paymentMode, setPaymentMode] = useState<PaymentMode>(template.paymentMode);
   const [paymentPercent, setPaymentPercent] = useState(template.paymentPercent?.toString() ?? "");
   const [status, setStatus] = useState<ActionState>(null);
@@ -80,6 +92,22 @@ export function TemplateWorkspace({ template }: { template: TemplateData }) {
       </label>
 
       <RichEditor initialContent={template.content} roles={roles} onChange={setContent} />
+
+      {quote ? (
+        <div className="space-y-2">
+          {countQuoteBlocks(content) === 0 && (
+            <p className="text-sm text-amber-700">Insert the “Pricing table” block in the content where the table should appear.</p>
+          )}
+          <QuoteEditor quote={quote} onChange={setQuote} products={products} currencies={currencies} />
+          <button type="button" className={secondaryButtonClass} onClick={() => setQuote(null)}>
+            Remove pricing table
+          </button>
+        </div>
+      ) : (
+        <button type="button" className={secondaryButtonClass} onClick={() => setQuote(emptyQuote(defaultCurrency))}>
+          Add pricing table
+        </button>
+      )}
 
       <fieldset className="grid gap-3 rounded-md border border-neutral-200 bg-white p-4 sm:grid-cols-2">
         <legend className="px-1 text-sm font-semibold">Payment</legend>
