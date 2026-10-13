@@ -1,6 +1,5 @@
-import { RESERVED_COLUMN_IDS, type Quote, type QuoteItem } from "./schema";
+import { COLUMN_ID_PATTERN, RESERVED_COLUMN_IDS, type Quote, type QuoteItem } from "./schema";
 
-const COLUMN_ID_PATTERN = /^[a-z_][a-z0-9_]{0,31}$/;
 // Same token shapes as the formula tokenizer: numbers first, so "2x" is the number 2 then the identifier x.
 const FORMULA_TOKEN = /\d+(?:\.\d+)?|[a-z_][a-z0-9_]*/g;
 
@@ -32,6 +31,7 @@ function mapItems(quote: Quote, change: (item: QuoteItem) => QuoteItem): Quote["
 
 export function renameColumn(quote: Quote, from: string, to: string): Quote {
   if (from === to) return quote;
+  if (RESERVED_COLUMN_IDS.includes(to)) throw new Error(`"${to}" is a reserved column id.`);
   return {
     ...quote,
     amountFormula: renameInFormula(quote.amountFormula, from, to),
@@ -44,7 +44,7 @@ export function renameColumn(quote: Quote, from: string, to: string): Quote {
       const values = { ...item.values };
       delete values[from];
       delete values[to];
-      if (item.values[from] !== undefined) values[to] = item.values[from];
+      if (Object.hasOwn(item.values, from)) values[to] = item.values[from];
       return { ...item, values };
     }),
   };

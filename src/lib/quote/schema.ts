@@ -6,7 +6,8 @@ import { FormulaError, formulaRefs, parseFormula } from "./formula";
 export const DEFAULT_AMOUNT_FORMULA = "price * qty";
 export const RESERVED_FIELDS = ["price", "qty"] as const;
 // Names that would collide with object internals when line values are read by column id.
-export const RESERVED_COLUMN_IDS:readonly string[] = [...RESERVED_FIELDS, "__proto__", "constructor", "prototype"];
+export const RESERVED_COLUMN_IDS: readonly string[] = [...RESERVED_FIELDS, "__proto__", "constructor", "prototype"];
+export const COLUMN_ID_PATTERN = /^[a-z_][a-z0-9_]{0,31}$/;
 export const QUOTE_LIMITS = { sections: 50, items: 500, columns: 10 } as const;
 
 const minorAmount = z.number().int().min(0).max(MAX_MINOR_AMOUNT);
@@ -17,7 +18,7 @@ export const AdjustmentSchema = z.discriminatedUnion("type", [
 ]);
 
 export const ColumnSchema = z.object({
-  id: z.string().regex(/^[a-z_][a-z0-9_]{0,31}$/, "Column ids use lowercase letters, digits and underscores."),
+  id: z.string().regex(COLUMN_ID_PATTERN,"Column ids use lowercase letters, digits and underscores."),
   label: z.string().trim().min(1, "Every column needs a label.").max(60),
   type: z.enum(["text", "number", "money", "percent"]),
   formula: z.string().max(200).nullable().default(null),

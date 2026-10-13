@@ -356,6 +356,9 @@ function ColumnIdInput({ quote, id, disabled, onRename }: { quote: Quote; id: st
           if (event.key === "Enter") {
             event.preventDefault();
             commit();
+          } else if (event.key === "Escape") {
+            setDraft(null);
+            setProblem(null);
           }
         }}
         className={`${cell} ${problem ? "border-red-500" : ""}`}

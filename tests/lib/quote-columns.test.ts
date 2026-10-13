@@ -39,6 +39,18 @@ describe("renameColumn", () => {
     expect(renameColumn(quote, "price", "p").amountFormula).toBe("p * hours_x + hours + 2*hours");
   });
 
+  it("refuses reserved target ids", () => {
+    for (const id of ["__proto__", "constructor", "price"]) {
+      expect(() => renameColumn(build(), "hours", id)).toThrow("reserved");
+    }
+  });
+
+  it("moves only values the item owns, not inherited keys", () => {
+    // "toString" is inherited from Object.prototype, so no item owns a value under it.
+    const next = renameColumn(build(), "toString", "moved");
+    expect(next.sections[0].items.map((item) => Object.hasOwn(item.values, "moved"))).toEqual([false, false]);
+  });
+
   it("keeps the result valid", () => {
     expect(safeParseQuote(renameColumn(build(), "hours", "time")).ok).toBe(true);
   });
