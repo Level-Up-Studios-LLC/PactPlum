@@ -15,6 +15,13 @@
       "when": 1791871835071,
       "tag": "0001_quiet_hex",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791909118097,
+      "tag": "0002_content",
+      "breakpoints": true
     }
   ]
 }
