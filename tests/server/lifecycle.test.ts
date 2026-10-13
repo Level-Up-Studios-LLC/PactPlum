@@ -37,6 +37,22 @@ describe("document lifecycle", () => {
     expect(() => transition(from, event)).toThrow(InvalidTransitionError);
   });
 
+  it("names the refused action in the error message", () => {
+    expect(() => transition("draft", "request_payment")).toThrow("A draft document cannot request payment.");
+  });
+
+  const inherited = ["constructor", "toString", "__proto__", "hasOwnProperty"] as const;
+
+  it.each(inherited)("refuses inherited name %s as a status", (name) => {
+    expect(canTransition(name as never, "send")).toBe(false);
+    expect(() => transition(name as never, "send")).toThrow(InvalidTransitionError);
+  });
+
+  it.each(inherited)("refuses inherited name %s as an event", (name) => {
+    expect(canTransition("draft", name as never)).toBe(false);
+    expect(() => transition("draft", name as never)).toThrow(InvalidTransitionError);
+  });
+
   it("treats paid, declined and voided as final", () => {
     const finals: DocumentStatus[] = ["paid", "declined", "voided"];
     for (const status of finals) {

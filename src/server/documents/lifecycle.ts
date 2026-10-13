@@ -5,7 +5,7 @@ export type DocumentEvent = (typeof DOCUMENT_EVENTS)[number];
 
 export class InvalidTransitionError extends Error {
   constructor(status: DocumentStatus, event: DocumentEvent) {
-    super(`A ${status} document cannot ${event.replace("_", " ")}.`);
+    super(`A ${status} document cannot ${event.replaceAll("_", " ")}.`);
     this.name = "InvalidTransitionError";
   }
 }
@@ -21,12 +21,19 @@ const TRANSITIONS: Record<DocumentEvent, Partial<Record<DocumentStatus, Document
   edit: { draft: "draft", sent: "draft", viewed: "draft" },
 };
 
+// Only own properties count, so inherited names such as "constructor" or "__proto__" are never transitions.
+function next(status: DocumentStatus, event: DocumentEvent): DocumentStatus | undefined {
+  if (!Object.hasOwn(TRANSITIONS, event)) return undefined;
+  const row = TRANSITIONS[event];
+  return Object.hasOwn(row, status) ? row[status] : undefined;
+}
+
 export function canTransition(status: DocumentStatus, event: DocumentEvent): boolean {
-  return TRANSITIONS[event][status] !== undefined;
+  return next(status, event) !== undefined;
 }
 
 export function transition(status: DocumentStatus, event: DocumentEvent): DocumentStatus {
-  const next = TRANSITIONS[event][status];
-  if (!next) throw new InvalidTransitionError(status, event);
-  return next;
+  const to = next(status, event);
+  if (!to) throw new InvalidTransitionError(status, event);
+  return to;
 }
