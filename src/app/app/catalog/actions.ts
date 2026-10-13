@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
 import { requireMember } from "@/server/auth/session";
+import { NotFoundError } from "@/server/errors";
 import { createProduct, deleteProduct, updateProduct } from "@/server/catalog/products";
 import { type ActionState, actionError } from "../action-state";
 
@@ -44,7 +45,12 @@ export async function updateProductAction(id: string, _prev: ActionState, formDa
 
 export async function deleteProductAction(id: string): Promise<void> {
   const { ctx } = await requireMember();
-  await deleteProduct(db, ctx, id);
+  try {
+    await deleteProduct(db, ctx, id);
+  } catch (error) {
+    // Already gone counts as deleted.
+    if (!(error instanceof NotFoundError)) throw error;
+  }
   revalidatePath("/app/catalog");
   redirect("/app/catalog");
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
 import { requireMember } from "@/server/auth/session";
+import { NotFoundError } from "@/server/errors";
 import { createTemplate, deleteTemplate, duplicateTemplate, updateTemplate } from "@/server/templates/templates";
 import { type ActionState, actionError, formValues } from "../action-state";
 
@@ -46,7 +47,12 @@ export async function duplicateTemplateAction(id: string): Promise<void> {
 
 export async function deleteTemplateAction(id: string): Promise<void> {
   const { ctx } = await requireMember();
-  await deleteTemplate(db, ctx, id);
+  try {
+    await deleteTemplate(db, ctx, id);
+  } catch (error) {
+    // Already gone counts as deleted.
+    if (!(error instanceof NotFoundError)) throw error;
+  }
   revalidatePath("/app/templates");
   redirect("/app/templates");
 }

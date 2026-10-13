@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
 import { requireMember } from "@/server/auth/session";
+import { NotFoundError } from "@/server/errors";
 import { createDocument, deleteDocument, updateDocument } from "@/server/documents/documents";
 import { addRecipient, moveRecipient, removeRecipient } from "@/server/documents/recipients";
 import { type ActionState, actionError, formValues } from "../action-state";
@@ -42,7 +43,12 @@ export async function saveDocumentAction(id: string, input: unknown): Promise<Ac
 
 export async function deleteDocumentAction(id: string): Promise<void> {
   const { ctx } = await requireMember();
-  await deleteDocument(db, ctx, id);
+  try {
+    await deleteDocument(db, ctx, id);
+  } catch (error) {
+    // Already gone counts as deleted.
+    if (!(error instanceof NotFoundError)) throw error;
+  }
   revalidatePath("/app/documents");
   redirect("/app/documents");
 }

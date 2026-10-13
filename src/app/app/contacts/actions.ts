@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
 import { requireMember } from "@/server/auth/session";
+import { NotFoundError } from "@/server/errors";
 import { createContact, deleteContact, updateContact } from "@/server/contacts/contacts";
 import { type ActionState, actionError } from "../action-state";
 
@@ -43,7 +44,12 @@ export async function updateContactAction(id: string, _prev: ActionState, formDa
 
 export async function deleteContactAction(id: string): Promise<void> {
   const { ctx } = await requireMember();
-  await deleteContact(db, ctx, id);
+  try {
+    await deleteContact(db, ctx, id);
+  } catch (error) {
+    // Already gone counts as deleted.
+    if (!(error instanceof NotFoundError)) throw error;
+  }
   revalidatePath("/app/contacts");
   redirect("/app/contacts");
 }
