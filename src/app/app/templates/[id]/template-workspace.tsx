@@ -2,21 +2,15 @@
 
 import type { JSONContent } from "@tiptap/react";
 import { useState, useTransition } from "react";
-import { type CatalogOption, QuoteEditor } from "@/components/editor/quote-editor";
+import { PricingTableSection } from "@/components/editor/pricing-table-section";
+import type { CatalogOption } from "@/components/editor/quote-editor";
 import { RichEditor } from "@/components/editor/rich-editor";
-import {
-  DOCUMENT_TYPE_LABELS,
-  DOCUMENT_TYPES,
-  type DocumentType,
-  PAYMENT_MODE_LABELS,
-  PAYMENT_MODES,
-  type PaymentMode,
-} from "@/lib/documents";
-import { countQuoteBlocks } from "@/lib/editor/content";
-import { emptyQuote, type Quote } from "@/lib/quote/schema";
+import { DOCUMENT_TYPE_LABELS, DOCUMENT_TYPES, type DocumentType, type PaymentMode } from "@/lib/documents";
+import type { Quote } from "@/lib/quote/schema";
 import { parseRoleList } from "@/lib/roles";
 import type { ActionState } from "../../action-state";
-import { buttonClass, FormStatus, inputClass, secondaryButtonClass } from "../../ui";
+import { PaymentFields } from "../../payment-fields";
+import { buttonClass, FormStatus, inputClass } from "../../ui";
 import { saveTemplateAction } from "../actions";
 
 export type TemplateData = {
@@ -93,48 +87,21 @@ export function TemplateWorkspace({
 
       <RichEditor initialContent={template.content} roles={roles} onChange={setContent} />
 
-      {quote ? (
-        <div className="space-y-2">
-          {countQuoteBlocks(content) === 0 && (
-            <p className="text-sm text-amber-700">Insert the “Pricing table” block in the content where the table should appear.</p>
-          )}
-          <QuoteEditor quote={quote} onChange={setQuote} products={products} currencies={currencies} />
-          <button type="button" className={secondaryButtonClass} onClick={() => setQuote(null)}>
-            Remove pricing table
-          </button>
-        </div>
-      ) : (
-        <button type="button" className={secondaryButtonClass} onClick={() => setQuote(emptyQuote(defaultCurrency))}>
-          Add pricing table
-        </button>
-      )}
+      <PricingTableSection
+        quote={quote}
+        content={content}
+        onChange={setQuote}
+        products={products}
+        currencies={currencies}
+        defaultCurrency={defaultCurrency}
+      />
 
-      <fieldset className="grid gap-3 rounded-md border border-neutral-200 bg-white p-4 sm:grid-cols-2">
-        <legend className="px-1 text-sm font-semibold">Payment</legend>
-        <label className="block text-sm">
-          Collect payment
-          <select value={paymentMode} onChange={(event) => setPaymentMode(event.target.value as PaymentMode)} className={inputClass}>
-            {PAYMENT_MODES.map((mode) => (
-              <option key={mode} value={mode}>
-                {PAYMENT_MODE_LABELS[mode]}
-              </option>
-            ))}
-          </select>
-        </label>
-        {paymentMode === "deposit_percent" && (
-          <label className="block text-sm">
-            Deposit percent
-            <input
-              type="number"
-              min={1}
-              max={100}
-              value={paymentPercent}
-              onChange={(event) => setPaymentPercent(event.target.value)}
-              className={inputClass}
-            />
-          </label>
-        )}
-      </fieldset>
+      <PaymentFields
+        mode={paymentMode}
+        percent={paymentPercent}
+        onModeChange={setPaymentMode}
+        onPercentChange={setPaymentPercent}
+      />
 
       <div className="flex items-center gap-4">
         <button type="button" onClick={save} disabled={pending} className={buttonClass}>
