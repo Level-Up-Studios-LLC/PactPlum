@@ -130,6 +130,8 @@ export const documents = pgTable(
   (table) => [
     uniqueIndex("documents_org_number_idx").on(table.organizationId, table.number),
     index("documents_org_status_idx").on(table.organizationId, table.status),
+    // Backs the list order: newest edit first, with the id as the tie-breaker.
+    index("documents_org_updated_idx").on(table.organizationId, table.updatedAt.desc(), table.id.desc()),
     check("documents_currency_code", sql`${table.currency} ~ '^[A-Z]{3}$'`),
     check("documents_total_nonnegative", sql`${table.total} >= 0`),
     check("documents_payment_percent_range", sql`${table.paymentPercent} IS NULL OR ${table.paymentPercent} BETWEEN 1 AND 100`),

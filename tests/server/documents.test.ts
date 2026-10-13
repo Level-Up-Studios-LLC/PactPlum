@@ -40,9 +40,10 @@ const pricedQuote = (qty = 1, currency = "USD") => ({
   sections: [{ id: "s1", title: "", kind: "standard", items: [{ id: "i1", name: "Design", price: 100000, qty }] }],
 });
 
-// Saves on top of the stored version, like a page that was just loaded.
-async function save(ctx: OrgContext, id: string, input: object) {
-  return updateDocument(db, ctx, id, { ...input, version: (await getDocument(db, a, id)).version });
+// Saves as ctx on top of the stored version, like a page that was just loaded.
+// The version is read as `owner`, which holds the document, so a save as another organization still reaches the code under test.
+async function save(ctx: OrgContext, id: string, input: object, owner: OrgContext = a) {
+  return updateDocument(db, ctx, id, { ...input, version: (await getDocument(db, owner, id)).version });
 }
 
 beforeEach(async () => {
@@ -209,6 +210,18 @@ describe("updateDocument", () => {
     expect(stored.content).toEqual(newContent);
   });
 
+  it("gives the conflict, not a validation error, for a stale save that would also be invalid", async () => {
+    const { id } = await createDocument(db, a, { templateId, contactId });
+    await updateDocument(db, a, id, { version: 1, name: "Teammate edit" });
+    const conflict = new ConflictError(
+      "Someone else saved this document since you opened it. Reload the page to see their changes, then make your edits again.",
+    );
+    // Drops the role that Jane Doe holds, which a current save refuses as a validation error.
+    await expect(updateDocument(db, aMember, id, { version: 1, roles: ["Agency"] })).rejects.toThrow(conflict);
+    const other = await createContact(db, b, { name: "Bob", email: "bob@globex.com" });
+    await expect(updateDocument(db, aMember, id, { version: 1, contactId: other.id })).rejects.toThrow(conflict);
+  });
+
   it("requires a positive integer version", async () => {
     const { id } = await createDocument(db, a, { templateId });
     for (const version of [undefined, 0, -1, 1.5, "1"]) {
@@ -363,7 +376,7 @@ describe("listing and isolation", () => {
   it("hides one organization's documents from another", async () => {
     const { id } = await createDocument(db, a, { templateId, contactId });
     await expect(getDocument(db, b, id)).rejects.toThrow(new NotFoundError("Document not found."));
-    await expect(save(b, id, { name: "Hacked" })).rejects.toThrow(NotFoundError);
+    await expect(save(b, id, { name: "Hacked" }, a)).rejects.toThrow(NotFoundError);
     await expect(deleteDocument(db, b, id)).rejects.toThrow(NotFoundError);
     expect((await listDocuments(db, b)).rows).toEqual([]);
     expect((await getDocument(db, a, id)).name).toBe("Website proposal");

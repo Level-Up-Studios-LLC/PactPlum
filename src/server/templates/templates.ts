@@ -66,9 +66,14 @@ export async function createTemplate(db: Db, ctx: OrgContext, input: unknown): P
   return template;
 }
 
+const TEMPLATE_CONFLICT_MESSAGE =
+  "Someone else saved this template since you opened it. Reload the page to see their changes, then make your edits again.";
+
 export async function updateTemplate(db: Db, ctx: OrgContext, id: string, input: unknown): Promise<Template> {
   const data = parseInput(UpdateInput, input);
   const existing = await getTemplate(db, ctx, id);
+  // Checked before anything else, so a stale save gets the conflict and not an error about changes it never saw.
+  if (existing.version !== data.version) throw new ConflictError(TEMPLATE_CONFLICT_MESSAGE);
   const roles = data.roles ?? existing.roles;
   // Content is re-checked against the roles even when only the roles change.
   const content = checkContent(data.content !== undefined ? data.content : existing.content, roles);
@@ -91,11 +96,9 @@ export async function updateTemplate(db: Db, ctx: OrgContext, id: string, input:
     .where(and(scoped(ctx, id), eq(templates.version, data.version)))
     .returning();
   if (template) return template;
-  // Nothing matched: the template is gone, or someone saved it after the caller loaded it.
+  // Nothing matched: the template was deleted, or saved by someone else after the read above.
   await getTemplate(db, ctx, id);
-  throw new ConflictError(
-    "Someone else saved this template since you opened it. Reload the page to see their changes, then make your edits again.",
-  );
+  throw new ConflictError(TEMPLATE_CONFLICT_MESSAGE);
 }
 
 export async function duplicateTemplate(db: Db, ctx: OrgContext, id: string): Promise<Template> {

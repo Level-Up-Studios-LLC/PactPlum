@@ -197,10 +197,15 @@ export async function lockDraftDocument(tx: Db, ctx: OrgContext, id: string): Pr
   return { ...document, recipients: rows };
 }
 
+const DOCUMENT_CONFLICT_MESSAGE =
+  "Someone else saved this document since you opened it. Reload the page to see their changes, then make your edits again.";
+
 export async function updateDocument(db: Db, ctx: OrgContext, id: string, input: unknown): Promise<DocumentRow> {
   const data = parseInput(UpdateInput, input);
   return db.transaction(async (tx) => {
     const existing = await lockDraftDocument(tx, ctx, id);
+    // Checked before anything else, so a stale save gets the conflict and not an error about changes it never saw.
+    if (existing.version !== data.version) throw new ConflictError(DOCUMENT_CONFLICT_MESSAGE);
 
     const roles = data.roles ?? existing.roles;
     const orphan = existing.recipients.find((recipient) => recipient.role !== null && !roles.includes(recipient.role));
@@ -244,12 +249,8 @@ export async function updateDocument(db: Db, ctx: OrgContext, id: string, input:
       })
       .where(and(scoped(ctx, id), eq(documents.status, "draft"), eq(documents.version, data.version)))
       .returning();
-    // The row is locked and was a draft above, so only a different version can leave nothing to update.
-    if (!document) {
-      throw new ConflictError(
-        "Someone else saved this document since you opened it. Reload the page to see their changes, then make your edits again.",
-      );
-    }
+    // The row is locked and its version was checked above, so this is only a safety net.
+    if (!document) throw new ConflictError(DOCUMENT_CONFLICT_MESSAGE);
     return document;
   });
 }

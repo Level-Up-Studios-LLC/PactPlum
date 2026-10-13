@@ -81,7 +81,16 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
       </form>
       {documents.length === 0 ? (
         <p className="text-sm text-neutral-600">
-          {page > 1 ? "No documents on this page." : "No documents match. Create one from a template."}
+          {page > 1 ? (
+            <>
+              No documents on this page.{" "}
+              <Link href={pageHref(1)} className="text-[#6b2d5c] hover:underline">
+                Back to the first page
+              </Link>
+            </>
+          ) : (
+            "No documents match. Create one from a template."
+          )}
         </p>
       ) : (
         <table className="w-full rounded-md border border-neutral-200 bg-white text-sm">

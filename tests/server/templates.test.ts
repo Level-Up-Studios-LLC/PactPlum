@@ -29,9 +29,10 @@ afterEach(async () => {
   await close();
 });
 
-// Saves on top of the stored version, like a page that was just loaded.
-async function save(ctx: OrgContext, id: string, input: object) {
-  return updateTemplate(db, ctx, id, { ...input, version: (await getTemplate(db, a, id)).version });
+// Saves as ctx on top of the stored version, like a page that was just loaded.
+// The version is read as `owner`, which holds the template, so a save as another organization still reaches the code under test.
+async function save(ctx: OrgContext, id: string, input: object, owner: OrgContext = a) {
+  return updateTemplate(db, ctx, id, { ...input, version: (await getTemplate(db, owner, id)).version });
 }
 
 const withField = (role = "Client"): JSONContent => ({
@@ -118,6 +119,13 @@ describe("templates", () => {
     expect(stored.content).toEqual(teammate);
   });
 
+  it("gives the conflict, not a validation error, for a stale save that would also be invalid", async () => {
+    const template = await createTemplate(db, a, { name: "T" });
+    await updateTemplate(db, a, template.id, { version: 1, content: withField("Client") });
+    // Drops the role that a field uses, which a current save refuses as a validation error.
+    await expect(updateTemplate(db, aMember, template.id, { version: 1, roles: ["Agency"] })).rejects.toThrow(ConflictError);
+  });
+
   it("requires a positive integer version", async () => {
     const template = await createTemplate(db, a, { name: "T" });
     for (const version of [undefined, 0, -1, 1.5, "1"]) {
@@ -163,7 +171,7 @@ describe("templates", () => {
   it("hides one organization's templates from another", async () => {
     const template = await createTemplate(db, a, { name: "Private" });
     await expect(getTemplate(db, b, template.id)).rejects.toThrow(new NotFoundError("Template not found."));
-    await expect(save(b, template.id, { name: "Hacked" })).rejects.toThrow(NotFoundError);
+    await expect(save(b, template.id, { name: "Hacked" }, a)).rejects.toThrow(NotFoundError);
     await expect(duplicateTemplate(db, b, template.id)).rejects.toThrow(NotFoundError);
     await expect(deleteTemplate(db, b, template.id)).rejects.toThrow(NotFoundError);
     expect(await listTemplates(db, b)).toEqual([]);
