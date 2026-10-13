@@ -13,9 +13,11 @@ import { requireMember } from "@/server/auth/session";
 import { listDocuments } from "@/server/documents/documents";
 import { buttonClass, inputClass, secondaryButtonClass } from "../ui";
 
-export default async function DocumentsPage({ searchParams }: { searchParams: Promise<{ status?: string; type?: string }> }) {
+export default async function DocumentsPage({ searchParams }: { searchParams: Promise<{ status?: string | string[]; type?: string | string[] }> }) {
   const { ctx } = await requireMember();
-  const { status = "", type = "" } = await searchParams;
+  const params = await searchParams;
+  const status = typeof params.status === "string" ? params.status : "";
+  const type = typeof params.type === "string" ? params.type : "";
   const filters = {
     status: (DOCUMENT_STATUSES as readonly string[]).includes(status) ? (status as DocumentStatus) : undefined,
     type: (DOCUMENT_TYPES as readonly string[]).includes(type) ? (type as DocumentType) : undefined,

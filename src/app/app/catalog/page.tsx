@@ -8,9 +8,10 @@ import { inputClass, secondaryButtonClass } from "../ui";
 import { createProductAction } from "./actions";
 import { ProductForm } from "./product-form";
 
-export default async function CatalogPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default async function CatalogPage({ searchParams }: { searchParams: Promise<{ q?: string | string[] }> }) {
   const { ctx } = await requireMember();
-  const { q = "" } = await searchParams;
+  const { q: rawQ } = await searchParams;
+  const q = typeof rawQ === "string" ? rawQ : "";
   const [products, org] = await Promise.all([listProducts(db, ctx, { search: q }), getOrganizationSettings(db, ctx)]);
 
   return (

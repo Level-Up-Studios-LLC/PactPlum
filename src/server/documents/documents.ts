@@ -142,7 +142,7 @@ export async function listDocuments(
       contactName: contacts.name,
     })
     .from(documents)
-    .leftJoin(contacts, eq(contacts.id, documents.contactId))
+    .leftJoin(contacts, and(eq(contacts.id, documents.contactId), eq(contacts.organizationId, ctx.organizationId)))
     .where(and(...conditions))
     .orderBy(desc(documents.updatedAt))
     .limit(200);
@@ -216,7 +216,11 @@ export async function updateDocument(db: Db, ctx: OrgContext, id: string, input:
 
 export async function deleteDocument(db: Db, ctx: OrgContext, id: string): Promise<void> {
   await getDraftDocument(db, ctx, id);
-  await db.delete(documents).where(and(scoped(ctx, id), eq(documents.status, "draft")));
+  const deleted = await db
+    .delete(documents)
+    .where(and(scoped(ctx, id), eq(documents.status, "draft")))
+    .returning({ id: documents.id });
+  if (deleted.length === 0) throw new ValidationError("Only draft documents can be edited.");
 }
 
 export async function documentVariableValues(db: Db, ctx: OrgContext, document: DocumentRow): Promise<Record<string, string>> {

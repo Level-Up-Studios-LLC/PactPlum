@@ -6,9 +6,10 @@ import { inputClass, secondaryButtonClass } from "../ui";
 import { createContactAction } from "./actions";
 import { ContactForm } from "./contact-form";
 
-export default async function ContactsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default async function ContactsPage({ searchParams }: { searchParams: Promise<{ q?: string | string[] }> }) {
   const { ctx } = await requireMember();
-  const { q = "" } = await searchParams;
+  const { q: rawQ } = await searchParams;
+  const q = typeof rawQ === "string" ? rawQ : "";
   const contacts = await listContacts(db, ctx, { search: q });
 
   return (

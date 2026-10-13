@@ -54,8 +54,8 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
           <p className="text-sm text-green-700">Everything needed to send is in place.</p>
         ) : (
           <ul className="list-disc space-y-1 pl-5 text-sm text-amber-800">
-            {problems.map((problem) => (
-              <li key={problem}>{problem}</li>
+            {problems.map((problem, index) => (
+              <li key={index}>{problem}</li>
             ))}
           </ul>
         )}

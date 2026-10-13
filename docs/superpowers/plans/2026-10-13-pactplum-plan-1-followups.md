@@ -42,4 +42,3 @@ Items found during Plan 1 reviews and deliberately deferred. Later plans must ac
 - Editing a sent or viewed document returns it to draft and invalidates its tokens (`edit` transition exists in `src/server/documents/lifecycle.ts`).
 - Send must call `checkSendReadiness` and refuse while it reports problems, then resolve variables with `resolveVariables` into the revision.
 - Content validation stores the raw editor JSON; Plan 3's rendering must allow only safe link URL schemes (http, https, mailto) or store the schema-normalized JSON.
-- `listDocuments` should also scope its contacts join by organization, and `deleteDocument` should report when nothing was deleted.

@@ -201,6 +201,13 @@ describe("listing and isolation", () => {
     expect((await listDocuments(db, a, { type: "proposal" })).map((d) => d.number)).toEqual(["P-0001"]);
   });
 
+  it("does not show a contact from another organization as the client", async () => {
+    const foreign = await createContact(db, b, { name: "Mallory", email: "mallory@evil.com" });
+    const { id } = await createDocument(db, a, { templateId });
+    await db.update(documents).set({ contactId: foreign.id }).where(eq(documents.id, id));
+    expect((await listDocuments(db, a)).map((d) => d.contactName)).toEqual([null]);
+  });
+
   it("hides one organization's documents from another", async () => {
     const { id } = await createDocument(db, a, { templateId, contactId });
     await expect(getDocument(db, b, id)).rejects.toThrow(new NotFoundError("Document not found."));
