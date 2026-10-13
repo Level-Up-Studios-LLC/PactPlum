@@ -13,16 +13,32 @@ import { requireMember } from "@/server/auth/session";
 import { listDocuments } from "@/server/documents/documents";
 import { buttonClass, inputClass, secondaryButtonClass } from "../ui";
 
-export default async function DocumentsPage({ searchParams }: { searchParams: Promise<{ status?: string | string[]; type?: string | string[] }> }) {
+type SearchParams = { status?: string | string[]; type?: string | string[]; q?: string | string[]; page?: string | string[] };
+
+export default async function DocumentsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const { ctx } = await requireMember();
   const params = await searchParams;
   const status = typeof params.status === "string" ? params.status : "";
   const type = typeof params.type === "string" ? params.type : "";
+  const q = typeof params.q === "string" ? params.q.trim() : "";
+  // A positive integer; anything else is the first page.
+  const page = typeof params.page === "string" && /^[1-9]\d{0,8}$/.test(params.page) ? Number(params.page) : 1;
   const filters = {
     status: (DOCUMENT_STATUSES as readonly string[]).includes(status) ? (status as DocumentStatus) : undefined,
     type: (DOCUMENT_TYPES as readonly string[]).includes(type) ? (type as DocumentType) : undefined,
   };
-  const documents = await listDocuments(db, ctx, filters);
+  const { rows: documents, hasMore } = await listDocuments(db, ctx, { ...filters, q }, { page });
+
+  // Links to another page keep the current filters and search.
+  const pageHref = (target: number) => {
+    const query = new URLSearchParams();
+    if (filters.status) query.set("status", filters.status);
+    if (filters.type) query.set("type", filters.type);
+    if (q) query.set("q", q);
+    if (target > 1) query.set("page", String(target));
+    const text = query.toString();
+    return text ? `/app/documents?${text}` : "/app/documents";
+  };
 
   return (
     <div className="space-y-6">
@@ -32,7 +48,11 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
           New document
         </Link>
       </div>
-      <form className="flex flex-wrap items-end gap-2">
+      <form role="search" className="flex flex-wrap items-end gap-2">
+        <label className="text-sm">
+          Search
+          <input name="q" defaultValue={q} placeholder="Search by name or number" className={inputClass} />
+        </label>
         <label className="text-sm">
           Status
           <select name="status" defaultValue={filters.status ?? ""} className={inputClass}>
@@ -60,7 +80,9 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
         </button>
       </form>
       {documents.length === 0 ? (
-        <p className="text-sm text-neutral-600">No documents match. Create one from a template.</p>
+        <p className="text-sm text-neutral-600">
+          {page > 1 ? "No documents on this page." : "No documents match. Create one from a template."}
+        </p>
       ) : (
         <table className="w-full rounded-md border border-neutral-200 bg-white text-sm">
           <thead className="bg-neutral-50 text-left text-neutral-600">
@@ -89,6 +111,22 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
             ))}
           </tbody>
         </table>
+      )}
+      {(page > 1 || hasMore) && (
+        <nav aria-label="Pages" className="flex items-center justify-between text-sm">
+          {page > 1 ? (
+            <Link href={pageHref(page - 1)} className="text-[#6b2d5c] hover:underline">
+              Newer
+            </Link>
+          ) : (
+            <span />
+          )}
+          {hasMore && (
+            <Link href={pageHref(page + 1)} className="text-[#6b2d5c] hover:underline">
+              Older
+            </Link>
+          )}
+        </nav>
       )}
     </div>
   );

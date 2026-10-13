@@ -238,21 +238,126 @@ describe("listing and isolation", () => {
     await createDocument(db, a, { templateId, contactId });
     const invoice = await createDocument(db, a, { type: "invoice" });
     await db.update(documents).set({ status: "sent" }).where(eq(documents.id, invoice.id));
-    expect((await listDocuments(db, a)).map((d) => [d.number, d.contactName])).toEqual(
+    expect((await listDocuments(db, a)).rows.map((d) => [d.number, d.contactName])).toEqual(
       expect.arrayContaining([
         ["P-0001", "Jane Doe"],
         ["INV-0001", null],
       ]),
     );
-    expect((await listDocuments(db, a, { status: "sent" })).map((d) => d.number)).toEqual(["INV-0001"]);
-    expect((await listDocuments(db, a, { type: "proposal" })).map((d) => d.number)).toEqual(["P-0001"]);
+    expect((await listDocuments(db, a, { status: "sent" })).rows.map((d) => d.number)).toEqual(["INV-0001"]);
+    expect((await listDocuments(db, a, { type: "proposal" })).rows.map((d) => d.number)).toEqual(["P-0001"]);
+  });
+
+  describe("paging and search", () => {
+    // Document k was updated k minutes after the first, so newest-first order is the reverse of insertion.
+    const insertMany = async (ctx: OrgContext, count: number, name = (k: number) => `Doc ${k}`) => {
+      const start = Date.UTC(2026, 0, 1);
+      await db.insert(documents).values(
+        Array.from({ length: count }, (_, k) => ({
+          organizationId: ctx.organizationId,
+          type: "proposal" as const,
+          name: name(k + 1),
+          number: `${ctx.organizationId.slice(0, 4)}-${String(k + 1).padStart(4, "0")}`,
+          content: emptyContent("x"),
+          currency: "USD",
+          updatedAt: new Date(start + k * 60_000),
+        })),
+      );
+    };
+
+    it("returns 50 documents, then the rest, with hasMore telling whether another page follows", async () => {
+      await insertMany(a, 120);
+      const first = await listDocuments(db, a);
+      expect(first.rows).toHaveLength(50);
+      expect(first.hasMore).toBe(true);
+      expect(first.rows[0].name).toBe("Doc 120");
+      const second = await listDocuments(db, a, {}, { page: 2 });
+      expect(second.rows).toHaveLength(50);
+      expect(second.hasMore).toBe(true);
+      const third = await listDocuments(db, a, {}, { page: 3 });
+      expect(third.rows).toHaveLength(20);
+      expect(third.hasMore).toBe(false);
+      expect(third.rows.at(-1)?.name).toBe("Doc 1");
+      const ids = [...first.rows, ...second.rows, ...third.rows].map((row) => row.id);
+      expect(new Set(ids).size).toBe(120);
+      expect((await listDocuments(db, a, {}, { page: 4 })).rows).toEqual([]);
+    });
+
+    it("has no next page when the last page is exactly full", async () => {
+      await insertMany(a, 50);
+      const result = await listDocuments(db, a);
+      expect(result.rows).toHaveLength(50);
+      expect(result.hasMore).toBe(false);
+    });
+
+    it("keeps the order stable when documents share an update time", async () => {
+      const at = new Date("2026-03-01T00:00:00Z");
+      await db.insert(documents).values(
+        Array.from({ length: 60 }, (_, k) => ({
+          organizationId: a.organizationId,
+          type: "proposal" as const,
+          name: `Same ${k}`,
+          number: `S-${k}`,
+          content: emptyContent("x"),
+          currency: "USD",
+          updatedAt: at,
+        })),
+      );
+      const ids = [
+        ...(await listDocuments(db, a)).rows,
+        ...(await listDocuments(db, a, {}, { page: 2 })).rows,
+      ].map((row) => row.id);
+      expect(ids).toHaveLength(60);
+      expect(new Set(ids).size).toBe(60);
+    });
+
+    it("treats an invalid page as the first", async () => {
+      await insertMany(a, 3);
+      for (const page of [0, -2, 1.5, Number.NaN]) {
+        expect((await listDocuments(db, a, {}, { page })).rows).toHaveLength(3);
+      }
+    });
+
+    it("searches by name or number, ignoring case and treating wildcards literally", async () => {
+      const proposal = await createDocument(db, a, { templateId, name: "Spring Campaign" });
+      await createDocument(db, a, { type: "invoice", name: "Hosting 100%_done" });
+      await createDocument(db, a, { type: "invoice", name: "Other" });
+      expect((await listDocuments(db, a, { q: "spring" })).rows.map((d) => d.id)).toEqual([proposal.id]);
+      expect((await listDocuments(db, a, { q: "INV-0002" })).rows.map((d) => d.name)).toEqual(["Other"]);
+      expect((await listDocuments(db, a, { q: "inv-000" })).rows).toHaveLength(2);
+      expect((await listDocuments(db, a, { q: "100%_" })).rows.map((d) => d.name)).toEqual(["Hosting 100%_done"]);
+      expect((await listDocuments(db, a, { q: "%" })).rows.map((d) => d.name)).toEqual(["Hosting 100%_done"]);
+      expect((await listDocuments(db, a, { q: "nothing like this" })).rows).toEqual([]);
+      expect((await listDocuments(db, a, { q: "  " })).rows).toHaveLength(3);
+    });
+
+    it("combines search with the status and type filters and with paging", async () => {
+      await insertMany(a, 60, (k) => `Report ${k}`);
+      const invoice = await createDocument(db, a, { type: "invoice", name: "Report invoice" });
+      expect((await listDocuments(db, a, { q: "report", type: "invoice" })).rows.map((d) => d.id)).toEqual([invoice.id]);
+      expect((await listDocuments(db, a, { q: "report", status: "sent" })).rows).toEqual([]);
+      const first = await listDocuments(db, a, { q: "report" });
+      expect(first.rows).toHaveLength(50);
+      expect(first.hasMore).toBe(true);
+      expect((await listDocuments(db, a, { q: "report" }, { page: 2 })).rows).toHaveLength(11);
+    });
+
+    it("keeps search results inside the organization", async () => {
+      await createDocument(db, a, { templateId, name: "Shared Name" });
+      const foreign = await createDocument(db, b, { name: "Shared Name" });
+      const found = await listDocuments(db, b, { q: "shared" });
+      expect(found.rows.map((d) => d.id)).toEqual([foreign.id]);
+      expect((await listDocuments(db, a, { q: "shared" })).rows.map((d) => d.id)).not.toContain(foreign.id);
+      // A number that exists in both organizations only matches within the caller's own.
+      expect((await listDocuments(db, b, { q: "P-0001" })).rows.map((d) => d.id)).toEqual([foreign.id]);
+    });
   });
 
   it("does not show a contact from another organization as the client", async () => {
     const foreign = await createContact(db, b, { name: "Mallory", email: "mallory@evil.com" });
     const { id } = await createDocument(db, a, { templateId });
     await db.update(documents).set({ contactId: foreign.id }).where(eq(documents.id, id));
-    expect((await listDocuments(db, a)).map((d) => d.contactName)).toEqual([null]);
+    expect((await listDocuments(db, a)).rows.map((d) => d.contactName)).toEqual([null]);
   });
 
   it("hides one organization's documents from another", async () => {
@@ -260,7 +365,7 @@ describe("listing and isolation", () => {
     await expect(getDocument(db, b, id)).rejects.toThrow(new NotFoundError("Document not found."));
     await expect(save(b, id, { name: "Hacked" })).rejects.toThrow(NotFoundError);
     await expect(deleteDocument(db, b, id)).rejects.toThrow(NotFoundError);
-    expect(await listDocuments(db, b)).toEqual([]);
+    expect((await listDocuments(db, b)).rows).toEqual([]);
     expect((await getDocument(db, a, id)).name).toBe("Website proposal");
   });
 });

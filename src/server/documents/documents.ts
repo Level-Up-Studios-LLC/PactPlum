@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { contacts, documents, recipients, user } from "@/db/schema";
 import type { Db } from "@/db/types";
@@ -13,7 +13,7 @@ import { emptyContent, VARIABLE_NAME_PATTERN } from "@/lib/editor/content";
 import { variableValues } from "@/lib/editor/variables";
 import { emptyQuote, type Quote } from "@/lib/quote/schema";
 import { computeQuote } from "@/lib/quote/totals";
-import { getContact } from "@/server/contacts/contacts";
+import { escapeLike, getContact } from "@/server/contacts/contacts";
 import { checkContent, checkPayment, checkQuote, RolesSchema, VersionSchema } from "@/server/content-rules";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/errors";
 import { getOrganizationSettings } from "@/server/org/settings";
@@ -123,15 +123,27 @@ export async function createDocument(db: Db, ctx: OrgContext, input: unknown): P
   });
 }
 
+export const DOCUMENTS_PAGE_SIZE = 50;
+
+/** One page of documents, newest change first; `hasMore` says whether an older page follows. */
 export async function listDocuments(
   db: Db,
   ctx: OrgContext,
-  filters: { status?: DocumentStatus; type?: DocumentType } = {},
-): Promise<DocumentSummary[]> {
-  const conditions = [eq(documents.organizationId, ctx.organizationId)];
-  if (filters.status) conditions.push(eq(documents.status, filters.status));
-  if (filters.type) conditions.push(eq(documents.type, filters.type));
-  return db
+  filters: { status?: DocumentStatus; type?: DocumentType; q?: string } = {},
+  options: { page?: number } = {},
+): Promise<{ rows: DocumentSummary[]; hasMore: boolean }> {
+  const requested = options.page ?? 1;
+  const page = Number.isSafeInteger(requested) && requested > 0 ? requested : 1;
+  const search = filters.q?.trim();
+  const pattern = `%${escapeLike(search ?? "")}%`;
+  const conditions = [
+    eq(documents.organizationId, ctx.organizationId),
+    filters.status ? eq(documents.status, filters.status) : undefined,
+    filters.type ? eq(documents.type, filters.type) : undefined,
+    search ? or(ilike(documents.name, pattern), ilike(documents.number, pattern)) : undefined,
+  ];
+  // One extra row tells whether another page exists.
+  const found = await db
     .select({
       id: documents.id,
       name: documents.name,
@@ -146,8 +158,10 @@ export async function listDocuments(
     .from(documents)
     .leftJoin(contacts, and(eq(contacts.id, documents.contactId), eq(contacts.organizationId, ctx.organizationId)))
     .where(and(...conditions))
-    .orderBy(desc(documents.updatedAt))
-    .limit(200);
+    .orderBy(desc(documents.updatedAt), desc(documents.id))
+    .limit(DOCUMENTS_PAGE_SIZE + 1)
+    .offset((page - 1) * DOCUMENTS_PAGE_SIZE);
+  return { rows: found.slice(0, DOCUMENTS_PAGE_SIZE), hasMore: found.length > DOCUMENTS_PAGE_SIZE };
 }
 
 export async function getDocument(db: Db, ctx: OrgContext, id: string): Promise<DocumentDetail> {
