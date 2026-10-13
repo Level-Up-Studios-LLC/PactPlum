@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { newId } from "@/lib/ids";
 import { formatMoney, minorToDecimalString, parseMoney } from "@/lib/money";
 import {
   type Adjustment,
@@ -58,19 +59,30 @@ function MoneyInput({
   const [text, setText] = useState(() => minorToDecimalString(value, currency));
   const valid = parseMoney(text, currency) !== null;
   return (
-    <input
-      aria-label={label}
-      aria-invalid={!valid}
-      inputMode="decimal"
-      value={text}
-      disabled={disabled}
-      className={`${cell} text-right ${valid ? "" : "border-red-500"}`}
-      onChange={(event) => {
-        setText(event.target.value);
-        const minor = parseMoney(event.target.value, currency);
-        if (minor !== null) onChange(minor);
-      }}
-    />
+    <>
+      <input
+        aria-label={label}
+        aria-invalid={!valid}
+        inputMode="decimal"
+        value={text}
+        disabled={disabled}
+        className={`${cell} text-right ${valid ? "" : "border-red-500"}`}
+        onChange={(event) => {
+          setText(event.target.value);
+          const minor = parseMoney(event.target.value, currency);
+          if (minor !== null) onChange(minor);
+        }}
+        // The parent only hears about parsable text, so show the amount actually in use when the text is not.
+        onBlur={() => {
+          if (!valid) setText(minorToDecimalString(value, currency));
+        }}
+      />
+      {!valid && (
+        <span role="alert" className="block text-xs text-red-600">
+          Use digits and an optional decimal point, e.g. 1250.50
+        </span>
+      )}
+    </>
   );
 }
 
@@ -303,7 +315,17 @@ function ItemRow({
   );
 }
 
+function nextColumnId(columns: QuoteColumn[]): string {
+  const used = new Set(columns.map((column) => column.id));
+  let number = 1;
+  while (used.has(`col_${number}`)) number++;
+  return `col_${number}`;
+}
+
 function ColumnsEditor({ quote, editable, onChange }: { quote: Quote; editable: boolean; onChange: (patch: Partial<Quote>) => void }) {
+  // Column ids are editable and columns have no other identity, so rows get their own stable keys:
+  // keying by id would remount the row (and drop focus) on every keystroke in the id field.
+  const [rowKeys, setRowKeys] = useState<string[]>(() => quote.columns.map(() => newId()));
   const updateColumn = (index: number, patch: Partial<QuoteColumn>) =>
     onChange({ columns: quote.columns.map((column, i) => (i === index ? { ...column, ...patch } : column)) });
   return (
@@ -323,7 +345,7 @@ function ColumnsEditor({ quote, editable, onChange }: { quote: Quote; editable: 
         />
       </label>
       {quote.columns.map((column, index) => (
-        <div key={index} className="mt-2 grid grid-cols-[1fr_1fr_7rem_1fr_auto] items-center gap-2">
+        <div key={rowKeys[index] ?? `row-${index}`} className="mt-2 grid grid-cols-[1fr_1fr_7rem_1fr_auto] items-center gap-2">
           <input
             aria-label="Column id"
             value={column.id}
@@ -365,7 +387,10 @@ function ColumnsEditor({ quote, editable, onChange }: { quote: Quote; editable: 
             type="button"
             className={smallButton}
             disabled={!editable}
-            onClick={() => onChange({ columns: quote.columns.filter((_, i) => i !== index) })}
+            onClick={() => {
+              setRowKeys((keys) => keys.filter((_, i) => i !== index));
+              onChange({ columns: quote.columns.filter((_, i) => i !== index) });
+            }}
           >
             Remove
           </button>
@@ -375,14 +400,13 @@ function ColumnsEditor({ quote, editable, onChange }: { quote: Quote; editable: 
         type="button"
         className={`${smallButton} mt-3`}
         disabled={!editable}
-        onClick={() =>
+        onClick={() => {
+          const id = nextColumnId(quote.columns);
+          setRowKeys((keys) => [...keys, newId()]);
           onChange({
-            columns: [
-              ...quote.columns,
-              { id: `col_${quote.columns.length + 1}`, label: `Column ${quote.columns.length + 1}`, type: "number", formula: null },
-            ],
-          })
-        }
+            columns: [...quote.columns, { id, label: `Column ${id.slice("col_".length)}`, type: "number", formula: null }],
+          });
+        }}
       >
         Add column
       </button>
