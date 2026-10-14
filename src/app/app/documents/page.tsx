@@ -93,33 +93,35 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
           )}
         </p>
       ) : (
-        <table className="w-full rounded-md border border-neutral-200 bg-white text-sm">
-          <thead className="bg-neutral-50 text-left text-neutral-600">
-            <tr>
-              <th className="px-3 py-2 font-medium">Number</th>
-              <th className="px-3 py-2 font-medium">Name</th>
-              <th className="px-3 py-2 font-medium">Client</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 text-right font-medium">Total</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-neutral-200">
-            {documents.map((document) => (
-              <tr key={document.id}>
-                <td className="px-3 py-2 text-neutral-600">{document.number}</td>
-                <td className="px-3 py-2">
-                  <Link href={`/app/documents/${document.id}`} className="font-medium text-[#6b2d5c] hover:underline">
-                    {document.name}
-                  </Link>
-                  <span className="ml-2 text-neutral-500">{DOCUMENT_TYPE_LABELS[document.type]}</span>
-                </td>
-                <td className="px-3 py-2">{document.contactName ?? "—"}</td>
-                <td className="px-3 py-2">{DOCUMENT_STATUS_LABELS[document.status]}</td>
-                <td className="px-3 py-2 text-right">{formatMoney(document.total, document.currency)}</td>
+        <div className="overflow-x-auto rounded-md border border-neutral-200 bg-white">
+          <table className="w-full text-sm">
+            <thead className="bg-neutral-50 text-left text-neutral-600">
+              <tr>
+                <th className="px-3 py-2 font-medium">Number</th>
+                <th className="px-3 py-2 font-medium">Name</th>
+                <th className="px-3 py-2 font-medium">Client</th>
+                <th className="px-3 py-2 font-medium">Status</th>
+                <th className="px-3 py-2 text-right font-medium">Total</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-neutral-200">
+              {documents.map((document) => (
+                <tr key={document.id}>
+                  <td className="whitespace-nowrap px-3 py-2 text-neutral-600">{document.number}</td>
+                  <td className="px-3 py-2">
+                    <Link href={`/app/documents/${document.id}`} className="font-medium text-[#6b2d5c] hover:underline">
+                      {document.name}
+                    </Link>
+                    <span className="ml-2 text-neutral-500">{DOCUMENT_TYPE_LABELS[document.type]}</span>
+                  </td>
+                  <td className="px-3 py-2">{document.contactName ?? "—"}</td>
+                  <td className="px-3 py-2">{DOCUMENT_STATUS_LABELS[document.status]}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right">{formatMoney(document.total, document.currency)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {(page > 1 || hasMore) && (
         <nav aria-label="Pages" className="flex items-center justify-between text-sm">
