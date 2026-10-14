@@ -33,3 +33,12 @@ Items found during Plan 1 reviews and deliberately deferred. Later plans must ac
 - Forgot/reset password forms: pending states, error handling, `autoComplete="new-password"`, `role="status"` on success messages.
 - Any future owner-removal or transfer feature must handle the empty-owner case: today the next signed-in user without membership would become owner.
 - Replace the default favicon with a PactPlum icon during logo work.
+
+## Moved from Plan 2 to Plan 3
+
+- Image block in the editor, with S3-compatible storage (type and size limits from spec section 12). Plan 3 needs storage for signature images and PDFs anyway.
+- `fields` table: created on send from the field nodes in the frozen revision.
+- `settings` table: signature modes, default expiry (60 days), ESIGN consent text.
+- Editing a sent or viewed document returns it to draft and invalidates its tokens (`edit` transition exists in `src/server/documents/lifecycle.ts`).
+- Send must call `checkSendReadiness` and refuse while it reports problems, then resolve variables with `resolveVariables` into the revision.
+- Content validation stores the raw editor JSON; Plan 3's rendering must allow only safe link URL schemes (http, https, mailto) or store the schema-normalized JSON.
